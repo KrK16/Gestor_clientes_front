@@ -101,18 +101,23 @@ const AgregarCompra: React.FC<AgregarCompraProps> = ({ isOpen, onClose, onAdd })
   };
 
   return (
-    <Modal backdrop="blur" isOpen={isOpen} onClose={onClose}>
-      <ModalContent>
+    <Modal 
+    backdrop="blur" 
+    isOpen={isOpen} 
+    onClose={onClose} 
+    className="h-auto h-max-[90%vh]"
+  >
+          <ModalContent className="my-8 max-h-[90vh]">
         {(onClose) => (
           <>
             <ModalHeader className="flex flex-col gap-1 border-b border-gray-100 p-6">
               <div className="flex items-center gap-3">
                 <div className="h-8 w-1 bg-gradient-to-b from-blue-600 to-blue-400 rounded-full"/>
-                <h2 className="text-xl font-medium text-gray-800">Nueva Compra</h2>
+                <h2 className="text-xl font-medium text-gray-800">Agregar Compra</h2>
               </div>
             </ModalHeader>
 
-            <ModalBody className="p-6 space-y-6 custom-scrollbar">
+            <ModalBody className="p-6 space-y-6 overflow-y-auto max-h-[80vh]">
               {/* Client Selection Section */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between p-4 bg-gray-50/50 rounded-xl border border-gray-100">

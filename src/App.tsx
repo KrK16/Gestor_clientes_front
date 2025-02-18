@@ -4,6 +4,7 @@ import AgregarCliente from "./components/agregarCliente";
 import SeleccionarCliente from "./components/seleccionarCliente";
 import Compritas from "./pages/compras";
 import Compritas2 from "./pages/compras2";
+import Abonos from "./pages/abonos";
 
 function App() {
   return (
@@ -12,6 +13,7 @@ function App() {
       <Route element={<SeleccionarCliente />} path="/seleccionar" />
       <Route element={<Compritas />} path="/compras" />
       <Route element={<Compritas2/>} path="/compras2" />
+      <Route element={<Abonos />} path="/abonos" />
     </Routes>
   );
 }

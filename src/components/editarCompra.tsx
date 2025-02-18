@@ -7,7 +7,7 @@ import {
   ModalFooter,
 } from "@heroui/modal";
 import { Button } from "@heroui/button";
-import { XCircle, Trash2, Plus, Package, User, ShoppingBag } from "lucide-react";
+import {Trash2, Plus, Package, User, ShoppingBag } from "lucide-react";
 
 // Interfaces para los props y tipos de datos
 interface EditarCompraProps {
@@ -146,15 +146,15 @@ const EditarCompra: React.FC<EditarCompraProps> = ({
     }
   };
 
-  const eliminarProducto = async (id) => {
-    const response = await fetch(`http://26.241.225.40:3000/compras/producto/${id}`, {
+  const eliminarProducto = async (id:number) => {
+    await fetch(`http://26.241.225.40:3000/compras/producto/${id}`, {
       method: "DELETE",
       headers  : { "Content-Type": "application/json" },
     });
   }
 
   return (
-    <Modal backdrop="blur" isOpen={isOpen} onClose={onClose}>
+    <Modal backdrop="blur" isOpen={isOpen} onClose={onClose} className="mt-22 ">
       <ModalContent>
         {(onClose) => (
           <>
@@ -165,10 +165,10 @@ const EditarCompra: React.FC<EditarCompraProps> = ({
               </div>
             </ModalHeader>
 
-            <ModalBody className="p-6 space-y-6 overflow-y-auto max-h-[80vh]">
+            <ModalBody className="p-6 space-y-6 overflow-y-auto max-h-[65vh]">
               {/* Basic Info Section */}
               <div className="space-y-4">
-                <div className="flex items-center space-x-2 text-gray-600">
+                <div className="flex items-center justify-between p-4 bg-gray-50/50 rounded-xl border border-gray-100">
                   <Package size={18} />
                   <div className="flex-1">
                     <label className="text-sm font-medium text-gray-700">Nombre de la Compra</label>

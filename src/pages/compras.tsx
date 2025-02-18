@@ -6,6 +6,7 @@ import EliminarCompra from "@/components/eliminarCompra";
 import AgregarCompra from "@/components/agregarCompra";
 import EditarCompra from "@/components/editarCompra";
 import { Tooltip } from "@heroui/tooltip";
+import VerAbonos from "@/components/abonosdecompra";
 
 interface Product {
   id: number;
@@ -33,7 +34,9 @@ interface Purchase {
   name: string;
   products: Product[];
   customer: Customer;
+
 }
+
 
 const Compritas: React.FC = () => {
   const [purchases, setPurchases] = useState<Purchase[]>([]);
@@ -48,6 +51,10 @@ const Compritas: React.FC = () => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [purchaseToEdit, setPurchaseToEdit] = useState<Purchase | null>(null);
+  const [isAbonosModalOpen, setIsAbonosModalOpen] = useState(false);
+const [selectedPurchaseId, setSelectedPurchaseId] = useState<number | null>(null);
+const [isAbonoaddModalOpen, setIsAbonoaddModalOpen] = useState(false);
+
 
   useEffect(() => {
     const fetchPurchases = async () => {
@@ -120,6 +127,22 @@ const Compritas: React.FC = () => {
     window.location.reload();
   }
 
+  const contadorCompras = (id: number) => {
+    let contador = 0;
+    //Compras obtenidas de la API
+    purchases.map((purchase) => {
+      //Si el id del cliente es igual al id del cliente de la compra
+      if (purchase.customer.id === id) {
+        //Aumentar el contador de cada compra
+        contador++;
+      }
+    });
+
+    return contador
+  }
+
+
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100/50 pb-10">
@@ -149,19 +172,19 @@ const Compritas: React.FC = () => {
       <div className="p-8">
         <div className="  gap-6">
           {/* Filtros y búsqueda */}
-          <div className="mb-7 max-w-7xl mx-auto px-6 ">
+          <div className="mb-7 max-w-7xl mx-auto px-6">
             <div className="grid grid-cols-3 gap-4 overflow-x-auto">
               {/* Barra de búsqueda */}
               <div className="min-w-[250px]">
+                <label className="text-sm font-medium text-gray-700 mb-2 block">Búsqueda</label>
                 <div className="relative">
-                  <Search className="absolute left-3 top-12 transform -translate-y-1/2 text-gray-400" size={20} />
-                  <label className="text-sm font-medium text-gray-700 mb-2 block">Búsqueda</label>
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
                   <input
                     type="text"
                     placeholder="Buscar cliente..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full pl-10 pr-4 py-2 border-[0.5px] border-gray-200 rounded-lg focus:ring-focus:border-transparent"
                   />
                 </div>
               </div>
@@ -169,36 +192,41 @@ const Compritas: React.FC = () => {
               {/* Filtro de Compras */}
               <div className="min-w-[250px]">
                 <label className="text-sm font-medium text-gray-700 mb-2 block">Filtrar Compras</label>
-                <select
-                  value={selectedPurchaseName}
-                  onChange={(e) => setSelectedPurchaseName(e.target.value)}
-                  className="w-full py-3 px-4 rounded-xl border border-gray-200 focus:ring-2 
-                           focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200"
-                >
-                  <option value="">Todas las compras</option>
-                  {Array.from(new Set(purchases.map((purchase) => purchase.name))).map((name) => (
-                    <option key={name} value={name}>{name}</option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <Package className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                  <select
+                    value={selectedPurchaseName}
+                    onChange={(e) => setSelectedPurchaseName(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="">Todas las compras</option>
+                    {Array.from(new Set(purchases.map((purchase) => purchase.name))).map((name) => (
+                      <option key={name} value={name}>{name}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               {/* Filtro de Estado */}
               <div className="min-w-[250px]">
                 <label className="text-sm font-medium text-gray-700 mb-2 block">Estado</label>
-                <select
-                  value={selectedStatus}
-                  onChange={(e) => setSelectedStatus(e.target.value)}
-                  className="w-full py-3 px-4 rounded-xl border border-gray-200 focus:ring-2 
-                           focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200"
-                >
-                  <option value="">Todos los estados</option>
-                  <option value="pagado">Pagado</option>
-                  <option value="pendiente">Pendiente</option>
-                </select>
+                <div className="relative">
+                  <Package className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                  <select
+                    value={selectedStatus}
+                    onChange={(e) => setSelectedStatus(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="">Todos los estados</option>
+                    <option value="pagado">Pagado</option>
+                    <option value="pendiente">Pendiente</option>
+                  </select>
+                </div>
               </div>
             </div>
           </div>
-          <div  className="w-auto xl:max-w-[75%] grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 ">
+
+          <div className="w-auto xl:max-w-[75%] grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6  pl-7 ">
             {Object.values(groupedPurchases).map(({ customer, purchases }) => {
               const filteredPurchases = selectedPurchaseName
                 ? purchases.filter((purchase) => purchase.name === selectedPurchaseName)
@@ -222,14 +250,58 @@ const Compritas: React.FC = () => {
                       <Calendar size={24} />
                       <span>Cliente desde: {new Date(customer.createdAt).toLocaleDateString()}</span>
                     </div>
-                    <div className="flex items-center space-x-4 mt-2">
-                      <DollarSign size={24} />
-                      <span>Total Deuda: {formatCurrency(totalDebt)}</span>
+
+                    <div className="grid grid-cols-2 gap-4 mt-6">
+                      <div style={{
+                        height: "75%",
+                        width: "fit-content",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        flexDirection: "column",
+
+                      }} className="  rounded-xl p-2">
+                        <p className="text-gray-300 text-sm font-medium mb-1">Deuda Total</p>
+                        <p className="text-lg font-bold text-white">
+                          {formatCurrency(totalDebt)}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => pagarTodo(customer.id)}
+                         style={{
+                          height: "75%",
+                          width: "fit-content",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          flexDirection: "row",
+                        }} 
+                        
+                        className="bg-emerald-500 rounded-xl p-4 hover:bg-emerald-500/30 
+                             transition-all duration-300 flex flex-col items-center justify-center gap-1"
+                      >
+                        
+                        <DollarSign className="h-6 w-6 text-white" />
+                        <span className="text-sm font-medium text-white">Pagar Todo</span>
+                      </button>
                     </div>
-                    <button onClick={() => pagarTodo(customer.id)} className="w-full mt-4 group relative flex items-center justify-between bg-gradient-to-r from-blue-600 to-blue-500 text-white px-4 py-3 rounded-xl shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 transition-all duration-300 hover:scale-[1.02] border border-white/10" > <div className="flex items-center gap-2"> <DollarSign size={18} className="text-white/80 group-hover:scale-110 transition-transform" /> <span className="font-medium">Pagar deuda total</span> </div> <div className="flex items-center gap-2"> <span className="text-sm bg-white/20 px-3 py-1 rounded-lg"> {formatCurrency(totalDebt)} </span> </div> </button>
                   </div>
-                  <div className="p-4">
-                    <h2 className="text-2xl font-semibold mb-4 text-gray-800">Historial de Compras</h2>
+                  <div className="p-6">
+                    <div className="flex items-center justify-between mb-6">
+                      <div className="flex items-center gap-3">
+                        <div className="h-8 w-1 bg-gradient-to-b from-blue-600 to-blue-400 rounded-full" />
+                        <h2 className="text-s font-semibold text-gray-800"> Compras realizadas</h2>
+                      </div>
+                      <div className="flex items-center gap-3 px-4 py-2 bg-blue-50 rounded-xl">
+                        {/* <ShoppingBag size={20} className="text-blue-600" /> */}
+                        <div className="flex items-center gap-2">
+                          <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-lg text-sm font-semibold">
+                            {contadorCompras(customer.id)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
                     <div className="grid gap-4">
                       {filteredPurchases.map((purchase) => (
                         <div
@@ -270,6 +342,21 @@ const Compritas: React.FC = () => {
                                 <span className="text-xs font-medium">Ver Productos</span>
                               </button>
                             </Tooltip>
+                            <Tooltip content="Ver abonos">
+  <button
+    onClick={() => {
+      setSelectedPurchaseId(purchase.id);
+      setIsAbonosModalOpen(true);
+    }}
+    className="inline-flex items-center gap-1.5 px-3 py-1.5
+             bg-purple-50 hover:bg-purple-100 text-purple-600
+             rounded-lg transition-colors duration-200"
+  >
+    <DollarSign size={23} />
+    <span className="text-xs font-medium">Ver Abonos</span>
+  </button>
+</Tooltip>
+
 
                             <Tooltip content="Editar compra">
                               <button
@@ -389,6 +476,15 @@ const Compritas: React.FC = () => {
           onUpdate={handleUpdatePurchase}
         />
       )}
+      {selectedPurchaseId !== null && (
+        <VerAbonos 
+          isOpen={isAbonosModalOpen}
+          onClose={() => setIsAbonosModalOpen(false)}
+          purchaseId={selectedPurchaseId}
+        />
+
+      )}
+      
     </div>
   );
 };
