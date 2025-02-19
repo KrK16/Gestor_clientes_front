@@ -7,6 +7,9 @@ import AgregarCompra from "@/components/agregarCompra";
 import EditarCompra from "@/components/editarCompra";
 import { Tooltip } from "@heroui/tooltip";
 import VerAbonos from "@/components/abonosdecompra";
+import AgregarAbono from "@/components/agregarAbono";
+// Add these state variables at the top of your component
+
 
 interface Product {
   id: number;
@@ -52,8 +55,13 @@ const Compritas: React.FC = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [purchaseToEdit, setPurchaseToEdit] = useState<Purchase | null>(null);
   const [isAbonosModalOpen, setIsAbonosModalOpen] = useState(false);
-const [selectedPurchaseId, setSelectedPurchaseId] = useState<number | null>(null);
-const [isAbonoaddModalOpen, setIsAbonoaddModalOpen] = useState(false);
+  const [selectedPurchaseId, setSelectedPurchaseId] = useState<number | null>(null);
+
+  const [isAbonoModalOpen, setIsAbonoModalOpen] = useState(false);
+
+  const [isEditAbonoModalOpen, setIsEditAbonoModalOpen] = useState(false);
+  const [selectedAbonoId, setSelectedAbonoId] = useState<number | null>(null);
+  const [selectedAbonoAmount, setSelectedAbonoAmount] = useState<number>(0);
 
 
   useEffect(() => {
@@ -141,7 +149,15 @@ const [isAbonoaddModalOpen, setIsAbonoaddModalOpen] = useState(false);
     return contador
   }
 
+  const handleAddAbono = (abono: any) => {
+    // Lógica para manejar el abono agregado
+    console.log("Abono agregado:", abono);
+  };
 
+  const openAbonoModal = (purchaseId: number) => {
+    setSelectedPurchaseId(purchaseId);
+    setIsAbonoModalOpen(true);
+  };
 
 
   return (
@@ -268,19 +284,19 @@ const [isAbonoaddModalOpen, setIsAbonoaddModalOpen] = useState(false);
                       </div>
                       <button
                         onClick={() => pagarTodo(customer.id)}
-                         style={{
+                        style={{
                           height: "75%",
                           width: "fit-content",
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
                           flexDirection: "row",
-                        }} 
-                        
+                        }}
+
                         className="bg-emerald-500 rounded-xl p-4 hover:bg-emerald-500/30 
                              transition-all duration-300 flex flex-col items-center justify-center gap-1"
                       >
-                        
+
                         <DollarSign className="h-6 w-6 text-white" />
                         <span className="text-sm font-medium text-white">Pagar Todo</span>
                       </button>
@@ -343,20 +359,31 @@ const [isAbonoaddModalOpen, setIsAbonoaddModalOpen] = useState(false);
                               </button>
                             </Tooltip>
                             <Tooltip content="Ver abonos">
-  <button
-    onClick={() => {
-      setSelectedPurchaseId(purchase.id);
-      setIsAbonosModalOpen(true);
-    }}
-    className="inline-flex items-center gap-1.5 px-3 py-1.5
+                              <button
+                                onClick={() => {
+                                  setSelectedPurchaseId(purchase.id);
+                                  setIsAbonosModalOpen(true);
+                                }}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5
              bg-purple-50 hover:bg-purple-100 text-purple-600
              rounded-lg transition-colors duration-200"
-  >
-    <DollarSign size={23} />
-    <span className="text-xs font-medium">Ver Abonos</span>
-  </button>
-</Tooltip>
+                              >
+                                <DollarSign size={23} />
+                                <span className="text-xs font-medium">Ver Abonos</span>
+                              </button>
+                            </Tooltip>
 
+                            <Tooltip content="Agregar abono">
+                              <button
+                                onClick={() => openAbonoModal(purchase.id)}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5
+             bg-green-50 hover:bg-green-100 text-green-600
+             rounded-lg transition-colors duration-200"
+                              >
+                                <Plus size={23} />
+                                <span className="text-xs font-medium">Agregar Abono</span>
+                              </button>
+                            </Tooltip>
 
                             <Tooltip content="Editar compra">
                               <button
@@ -477,14 +504,37 @@ const [isAbonoaddModalOpen, setIsAbonoaddModalOpen] = useState(false);
         />
       )}
       {selectedPurchaseId !== null && (
-        <VerAbonos 
+        <VerAbonos
           isOpen={isAbonosModalOpen}
           onClose={() => setIsAbonosModalOpen(false)}
           purchaseId={selectedPurchaseId}
         />
 
       )}
-      
+      // Add this before the closing div of your component
+      {selectedAbonoId !== null && (
+        <EditarAbono
+          isOpen={isEditAbonoModalOpen}
+          onClose={() => setIsEditAbonoModalOpen(false)}
+          abonoId={selectedAbonoId}
+          purchaseId={selectedPurchaseId || 0}
+          currentAmount={selectedAbonoAmount}
+          onUpdate={() => {
+            // Refresh your data after update
+            window.location.reload();
+          }}
+        />
+      )}
+
+      {selectedPurchaseId !== null && (
+        <AgregarAbono
+          isOpen={isAbonoModalOpen}
+          onClose={() => setIsAbonoModalOpen(false)}
+          onAdd={handleAddAbono}
+          purchaseId={selectedPurchaseId}
+        />
+      )}
+
     </div>
   );
 };

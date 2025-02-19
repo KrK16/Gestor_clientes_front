@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import EditarAbono from './editarabono';
 import { 
   DollarSign, 
   Calendar, 
@@ -6,7 +7,8 @@ import {
   User, 
   Phone, 
   X, 
-  Loader2 
+  Loader2,
+  Edit 
 } from 'lucide-react';
 
 interface Customer {
@@ -45,6 +47,9 @@ const VerAbonos: React.FC<VerAbonosProps> = ({ isOpen, onClose, purchaseId }) =>
   const [payments, setPayments] = useState<Payment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedAbonoId, setSelectedAbonoId] = useState<number | null>(null);
+  const [selectedAbonoAmount, setSelectedAbonoAmount] = useState<number>(0);
+  const [isEditAbonoModalOpen, setIsEditAbonoModalOpen] = useState(false);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('es-ES', {
@@ -171,28 +176,42 @@ const VerAbonos: React.FC<VerAbonosProps> = ({ isOpen, onClose, purchaseId }) =>
                   {payments.map((payment) => (
                     <div
                       key={payment.id}
-                      className="bg-gray-50 rounded-lg p-4 flex items-center justify-between hover:bg-gray-100 transition-colors"
+                      className="bg-gray-50 rounded-lg p-4 hover:bg-gray-100 transition-colors"
                     >
-                      <div className="flex items-center gap-4">
-                        <div className="h-10 w-10 bg-blue-500/10 rounded-lg flex items-center justify-center">
-                          <DollarSign className="text-blue-500" size={20} />
-                        </div>
-                        <div>
-                          <p className="font-medium text-gray-900">
-                            {formatCurrency(payment.amount)}
-                          </p>
-                          <div className="flex items-center gap-2 text-sm text-gray-500">
-                            <Calendar size={14} />
-                            <span>
-                              {new Date(payment.createdAt).toLocaleDateString('es-ES', {
-                                year: 'numeric',
-                                month: 'long',
-                                day: 'numeric',
-                                hour: '2-digit',
-                                minute: '2-digit'
-                              })}
-                            </span>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                          <div className="h-10 w-10 bg-blue-500/10 rounded-lg flex items-center justify-center">
+                            <DollarSign className="text-blue-500" size={20} />
                           </div>
+                          <div>
+                            <p className="font-medium text-gray-900">
+                              {formatCurrency(payment.amount)}
+                            </p>
+                            <div className="flex items-center gap-2 text-sm text-gray-500">
+                              <Calendar size={14} />
+                              <span>
+                                {new Date(payment.createdAt).toLocaleDateString('es-ES', {
+                                  year: 'numeric',
+                                  month: 'long',
+                                  day: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => {
+                              setSelectedAbonoId(payment.id);
+                              setSelectedAbonoAmount(payment.amount);
+                              setIsEditAbonoModalOpen(true);
+                            }}
+                            className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
+                          >
+                            <Edit size={18} className="text-amber-600" />
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -226,6 +245,21 @@ const VerAbonos: React.FC<VerAbonosProps> = ({ isOpen, onClose, purchaseId }) =>
           </div>
         </div>
       </div>
+
+      {selectedAbonoId !== null && (
+        <EditarAbono
+          isOpen={isEditAbonoModalOpen}
+          onClose={() => setIsEditAbonoModalOpen(false)}
+          abonoId={selectedAbonoId}
+          purchaseId={purchaseId}
+          currentAmount={selectedAbonoAmount}
+          onUpdate={() => {
+            // Refresh payments data
+            fetchPayments();
+            setIsEditAbonoModalOpen(false);
+          }}
+        />
+      )}
     </>
   );
 };

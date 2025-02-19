@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter } from "@heroui/modal";
-import { Plus, DollarSign, X } from "lucide-react";
 import { Button } from "@heroui/button";
+import { Plus, X } from "lucide-react";
 
 interface AgregarAbonoProps {
   purchaseId: number;
@@ -12,7 +12,6 @@ interface AgregarAbonoProps {
 
 const AgregarAbono: React.FC<AgregarAbonoProps> = ({ purchaseId, onAdd, isOpen, onClose }) => {
   const [amount, setAmount] = useState<number | null>(null);
-  const [modalOpen, setModalOpen] = useState<boolean>(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -41,8 +40,7 @@ const AgregarAbono: React.FC<AgregarAbonoProps> = ({ purchaseId, onAdd, isOpen, 
 
   return (
     <>
-     
-      <Modal backdrop="blur" isOpen={modalOpen} onClose={onClose} className="min-h-screen flex items-center justify-center">
+      <Modal backdrop="blur" isOpen={isOpen} onClose={onClose} className="min-h-screen flex items-center justify-center">
         <ModalContent className="w-full max-w-lg mx-auto p-4">
           <ModalHeader className="flex items-center justify-between">
             <div className="flex items-center gap-3">
