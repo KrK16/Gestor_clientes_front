@@ -42,9 +42,6 @@ const EditarAbono: React.FC<EditarAbonoProps> = ({
     setIsLoading(true);
     setError(null);
     
-    // Convert amount string to number, removing non-numeric characters
-    const numericAmount = Number(amount.replace(/\D/g, ''));
-    
     try {
       const response = await fetch(`http://26.241.225.40:3000/abonos/${abonoId}`, {
         method: 'PUT',
@@ -52,27 +49,26 @@ const EditarAbono: React.FC<EditarAbonoProps> = ({
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          purchaseId: parseInt(purchaseId.toString()), // Ensure it's an integer
-          amount: numericAmount, // Send numeric amount
+          purchaseId: parseInt(purchaseId.toString()),
+          amount: Number(amount.replace(/\D/g, '')),
         }),
       });
   
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Error al actualizar el abono');
+      if (response.status === 200) {
+        // Call onUpdate to trigger parent component refresh
+        onUpdate();
+        // Close the modal
+        onClose();
+      } else {
+        throw new Error('Error al actualizar el abono');
       }
-  
-      // If successful, trigger update and close modal
-      onUpdate();
-      onClose();
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Error desconocido');
-      console.error('Error updating payment:', error);
+      console.error('Error al actualizar:', error);
     } finally {
       setIsLoading(false);
     }
   };
-
   if (!isOpen) return null;
 
   return (

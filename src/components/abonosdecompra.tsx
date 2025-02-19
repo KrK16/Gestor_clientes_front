@@ -59,25 +59,25 @@ const VerAbonos: React.FC<VerAbonosProps> = ({ isOpen, onClose, purchaseId }) =>
     }).format(amount);
   };
 
-  useEffect(() => {
-    const fetchPayments = async () => {
-      if (!purchaseId) return;
-      
-      setIsLoading(true);
-      try {
-        const response = await fetch(`http://26.241.225.40:3000/abonos/abonocompra/${purchaseId}`);
-        if (!response.ok) {
-          throw new Error('Error al cargar los abonos');
-        }
-        const data = await response.json();
-        setPayments(data);
-      } catch (error) {
-        setError(error instanceof Error ? error.message : 'Error desconocido');
-      } finally {
-        setIsLoading(false);
+  const fetchPayments = async () => {
+    if (!purchaseId) return;
+    
+    setIsLoading(true);
+    try {
+      const response = await fetch(`http://26.241.225.40:3000/abonos/abonocompra/${purchaseId}`);
+      if (!response.ok) {
+        throw new Error('Error al cargar los abonos');
       }
-    };
+      const data = await response.json();
+      setPayments(data);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Error desconocido');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
+  useEffect(() => {
     fetchPayments();
   }, [purchaseId]);
 
@@ -248,17 +248,17 @@ const VerAbonos: React.FC<VerAbonosProps> = ({ isOpen, onClose, purchaseId }) =>
 
       {selectedAbonoId !== null && (
         <EditarAbono
-          isOpen={isEditAbonoModalOpen}
-          onClose={() => setIsEditAbonoModalOpen(false)}
-          abonoId={selectedAbonoId}
-          purchaseId={purchaseId}
-          currentAmount={selectedAbonoAmount}
-          onUpdate={() => {
-            // Refresh payments data
-            fetchPayments();
-            setIsEditAbonoModalOpen(false);
-          }}
-        />
+        isOpen={isEditAbonoModalOpen}
+        onClose={() => setIsEditAbonoModalOpen(false)}
+        abonoId={selectedAbonoId}
+        purchaseId={purchaseId}
+        currentAmount={selectedAbonoAmount}
+        onUpdate={() => {
+          // Refresh payments data
+          fetchPayments();
+          setIsEditAbonoModalOpen(false);
+        }}
+      />
       )}
     </>
   );
