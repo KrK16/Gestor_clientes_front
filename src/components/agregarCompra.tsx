@@ -26,6 +26,9 @@ const AgregarCompra: React.FC<AgregarCompraProps> = ({ isOpen, onClose, onAdd })
   const [products, setProducts] = useState<{ name: string; quantity: string; price: string }[]>([
     { name: "", quantity: "", price: "" },
   ]);
+  const [payday, setPayday] = useState<string>("");
+  const [orderdate, setOrderdate] = useState<string>("");
+  const [formattedprice, setFormattedprice] = useState<string>('');
 
   useEffect(() => {
     const fetchClientes = async () => {
@@ -39,6 +42,34 @@ const AgregarCompra: React.FC<AgregarCompraProps> = ({ isOpen, onClose, onAdd })
     };
     fetchClientes();
   }, []);
+
+  const formatCurrency = (value: number): string => {
+    return new Intl.NumberFormat("es-CO", {
+      style: "currency",
+      currency: "COP",
+      minimumFractionDigits: 0,
+    }).format(value);
+  };
+
+  // Modificar el handleAmountChange para incluir el índice del producto
+  const handleAmountChange = (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.replace(/\D/g, '');
+
+    if (value) {
+      const numberValue = Number(value);
+      const formattedValue = formatCurrency(numberValue);
+
+      // Actualizar el precio del producto específico
+      handleProductChange(index, "price", value); // Guardamos el valor numérico
+      setFormattedprice(formattedValue);
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      setFormattedprice('');
+    }
+  }, [isOpen]);
 
   const handleAddProduct = () => {
     setProducts([...products, { name: "", quantity: "", price: "" }]);
@@ -57,11 +88,16 @@ const AgregarCompra: React.FC<AgregarCompraProps> = ({ isOpen, onClose, onAdd })
   const handleSubmit = async () => {
     try {
       const url = isNewClient ? "http://26.241.225.40:3000/compras/compraNCliente" : "http://26.241.225.40:3000/compras";
+
+
       const body = isNewClient
         ? {
           name: customerName,
           phone: customerPhone,
           nameCompra: name,
+          payday: payday,
+          // Changed from payDay to payday
+          orderdate: orderdate,   // Changed from orderDay to orderdate
           productos: products.map(product => ({
             ...product,
             quantity: Number(product.quantity),
@@ -71,12 +107,15 @@ const AgregarCompra: React.FC<AgregarCompraProps> = ({ isOpen, onClose, onAdd })
         : {
           customer_id: customerId,
           name,
+          payday: payday,        // Changed from payDay to payday
+          orderdate: orderdate,   // Changed from orderDay to orderdate
           productos: products.map(product => ({
             ...product,
             quantity: Number(product.quantity),
             price: Number(product.price)
           })),
         };
+      console.log(body);
 
       const response = await fetch(url, {
         method: "POST",
@@ -101,18 +140,18 @@ const AgregarCompra: React.FC<AgregarCompraProps> = ({ isOpen, onClose, onAdd })
   };
 
   return (
-    <Modal 
-    backdrop="blur" 
-    isOpen={isOpen} 
-    onClose={onClose} 
-    className="h-auto h-max-[90%vh]"
-  >
-          <ModalContent className="my-8 max-h-[90vh]">
+    <Modal
+      backdrop="blur"
+      isOpen={isOpen}
+      onClose={onClose}
+      className="h-auto h-max-[90%vh]"
+    >
+      <ModalContent className="my-8 max-h-[90vh]">
         {(onClose) => (
           <>
             <ModalHeader className="flex flex-col gap-1 border-b border-gray-100 p-6">
               <div className="flex items-center gap-3">
-                <div className="h-8 w-1 bg-gradient-to-b from-blue-600 to-blue-400 rounded-full"/>
+                <div className="h-8 w-1 bg-gradient-to-b from-blue-600 to-blue-400 rounded-full" />
                 <h2 className="text-xl font-medium text-gray-800">Agregar Compra</h2>
               </div>
             </ModalHeader>
@@ -124,22 +163,20 @@ const AgregarCompra: React.FC<AgregarCompraProps> = ({ isOpen, onClose, onAdd })
                   <div className="flex items-center gap-4">
                     <button
                       onClick={() => setIsNewClient(false)}
-                      className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-all duration-200 ${
-                        !isNewClient 
-                          ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/25' 
+                      className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-all duration-200 ${!isNewClient
+                          ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/25'
                           : 'bg-white text-gray-600 border border-gray-200'
-                      }`}
+                        }`}
                     >
                       <User size={16} />
                       Cliente Existente
                     </button>
                     <button
                       onClick={() => setIsNewClient(true)}
-                      className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-all duration-200 ${
-                        isNewClient 
-                          ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/25' 
+                      className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-all duration-200 ${isNewClient
+                          ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/25'
                           : 'bg-white text-gray-600 border border-gray-200'
-                      }`}
+                        }`}
                     >
                       <UserPlus size={16} />
                       Cliente Nuevo
@@ -194,6 +231,31 @@ const AgregarCompra: React.FC<AgregarCompraProps> = ({ isOpen, onClose, onAdd })
                   </div>
                 )}
 
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700">Fecha de Pago</label>
+                    <input
+                      type="date"
+                      value={payday}
+                      onChange={(e) => setPayday(e.target.value)}
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 
+                               focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500
+                               transition-all duration-200"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700">Fecha de Pedido</label>
+                    <input
+                      type="date"
+                      value={orderdate}
+                      onChange={(e) => setOrderdate(e.target.value)}
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 
+                               focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500
+                               transition-all duration-200"
+                    />
+                  </div>
+                </div>
+
                 {/* Purchase Name Section */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700">Nombre de la Compra</label>
@@ -226,7 +288,7 @@ const AgregarCompra: React.FC<AgregarCompraProps> = ({ isOpen, onClose, onAdd })
 
                 <div className="space-y-4 max-h-[40vh] overflow-y-auto custom-scrollbar pr-2">
                   {products.map((product, index) => (
-                    <div 
+                    <div
                       key={index}
                       className="p-4 rounded-xl border border-gray-100 bg-gray-50/50
                                hover:border-gray-200 transition-all duration-200
@@ -279,11 +341,11 @@ const AgregarCompra: React.FC<AgregarCompraProps> = ({ isOpen, onClose, onAdd })
                           <label className="text-sm font-medium text-gray-600">Precio</label>
                           <input
                             type="text"
-                            value={product.price}
-                            onChange={(e) => handleProductChange(index, "price", e.target.value)}
+                            value={product.price ? formatCurrency(Number(product.price)) : ''} // Mostrar el precio formateado
+                            onChange={(e) => handleAmountChange(index, e)}
                             className="w-full px-3 py-2 rounded-lg border border-gray-200 
-                                     focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500
-                                     transition-all duration-200"
+             focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500
+             transition-all duration-200"
                             placeholder="$0"
                           />
                         </div>

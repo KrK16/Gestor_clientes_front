@@ -8,7 +8,8 @@ import {
   Phone, 
   X, 
   Loader2,
-  Edit 
+  Edit,
+  Trash2 // Add this import
 } from 'lucide-react';
 
 interface Customer {
@@ -50,6 +51,8 @@ const VerAbonos: React.FC<VerAbonosProps> = ({ isOpen, onClose, purchaseId }) =>
   const [selectedAbonoId, setSelectedAbonoId] = useState<number | null>(null);
   const [selectedAbonoAmount, setSelectedAbonoAmount] = useState<number>(0);
   const [isEditAbonoModalOpen, setIsEditAbonoModalOpen] = useState(false);
+  const [isDeletingPayment, setIsDeletingPayment] = useState<number | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('es-ES', {
@@ -74,6 +77,27 @@ const VerAbonos: React.FC<VerAbonosProps> = ({ isOpen, onClose, purchaseId }) =>
       setError(error instanceof Error ? error.message : 'Error desconocido');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleDeletePayment = async (paymentId: number) => {
+    setIsDeletingPayment(paymentId);
+    try {
+      const response = await fetch(`http://26.241.225.40:3000/abonos/${paymentId}`, {
+        method: 'DELETE',
+      });
+      
+      if (!response.ok) {
+        throw new Error('Error al eliminar el abono');
+      }
+      
+      // Refresh the payments list
+      await fetchPayments();
+      setShowDeleteConfirm(false);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Error al eliminar el abono');
+    } finally {
+      setIsDeletingPayment(null);
     }
   };
 
@@ -209,8 +233,24 @@ const VerAbonos: React.FC<VerAbonosProps> = ({ isOpen, onClose, purchaseId }) =>
                               setIsEditAbonoModalOpen(true);
                             }}
                             className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
+                            title="Editar abono"
                           >
                             <Edit size={18} className="text-amber-600" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSelectedAbonoId(payment.id);
+                              setShowDeleteConfirm(true);
+                            }}
+                            className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
+                            title="Eliminar abono"
+                            disabled={isDeletingPayment === payment.id}
+                          >
+                            {isDeletingPayment === payment.id ? (
+                              <Loader2 size={18} className="text-red-600 animate-spin" />
+                            ) : (
+                              <Trash2 size={18} className="text-red-600" />
+                            )}
                           </button>
                         </div>
                       </div>
@@ -259,6 +299,41 @@ const VerAbonos: React.FC<VerAbonosProps> = ({ isOpen, onClose, purchaseId }) =>
           setIsEditAbonoModalOpen(false);
         }}
       />
+      )}
+
+      {showDeleteConfirm && (
+        <>
+          <div className="fixed inset-0 bg-black/30 z-50" onClick={() => setShowDeleteConfirm(false)} />
+          <div className="fixed inset-0 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-lg shadow-xl p-6 max-w-sm w-full">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                Confirmar eliminación
+              </h3>
+              <p className="text-gray-600 mb-6">
+                ¿Estás seguro que deseas eliminar este abono? Esta acción no se puede deshacer.
+              </p>
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => selectedAbonoId && handleDeletePayment(selectedAbonoId)}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                  disabled={isDeletingPayment !== null}
+                >
+                  {isDeletingPayment !== null ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    'Eliminar'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
       )}
     </>
   );

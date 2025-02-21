@@ -7,7 +7,7 @@ import {
   ModalFooter,
 } from "@heroui/modal";
 import { Button } from "@heroui/button";
-import {Trash2, Plus, Package, User, ShoppingBag } from "lucide-react";
+import {Trash2, Plus, Package, User, ShoppingBag, Calendar } from "lucide-react";
 
 // Interfaces para los props y tipos de datos
 interface EditarCompraProps {
@@ -60,17 +60,49 @@ const EditarCompra: React.FC<EditarCompraProps> = ({
   );
 
   useEffect(() => {
-    const fetchClientes = async () => {
-      try {
-        const response = await fetch("http://26.241.225.40:3000/clientes");
-        const data: Cliente[] = await response.json();
-        setClientes(data);
-      } catch (error) {
-        console.error("Error al obtener clientes:", error);
+    if (purchase) {
+      // Datos básicos de la compra
+      setCustomerId(purchase.customerId || purchase.customer_id);
+      setStatus(purchase.status || 'pendiente');
+      setPurchaseName(purchase.name || '');
+
+      // Fechas
+      const formattedPayDay = purchase.payday ? new Date(purchase.payday).toISOString().split('T')[0] : '';
+      const formattedOrderDay = purchase.orderdate ? new Date(purchase.orderdate).toISOString().split('T')[0] : '';
+      
+      setpayDay(formattedPayDay);
+      setorderDay(formattedOrderDay);
+
+      // Productos
+      if (purchase.products && Array.isArray(purchase.products)) {
+        setProducts(
+          purchase.products.map((product: any) => ({
+            product_id: product.id,
+            name: product.name || '',
+            quantity: product.quantity || 0,
+            price: formatCurrency(product.price || 0),
+          }))
+        );
       }
-    };
-    fetchClientes();
-  }, []);
+
+      // Cargar la lista de clientes
+      fetchClientes();
+    }
+  }, [purchase]);
+
+  // Función para cargar clientes
+  const fetchClientes = async () => {
+    try {
+      const response = await fetch("http://26.241.225.40:3000/clientes");
+      const data: Cliente[] = await response.json();
+      setClientes(data);
+    } catch (error) {
+      console.error("Error al obtener clientes:", error);
+    }
+  };
+
+  const [payDay, setpayDay] = useState<string>(purchase.payDay || "");
+  const [orderDay, setorderDay] = useState<string>(purchase.orderDay || "");
 
   const handleProductChange = (
     index: number,
@@ -128,6 +160,8 @@ const EditarCompra: React.FC<EditarCompraProps> = ({
             customer_id: customerId,
             status,
             purchaseName: purchaseName,
+            payDay: payDay,
+            orderDay: orderDay,
             productos: cleanedProducts,
           }),
         }
@@ -227,6 +261,36 @@ const EditarCompra: React.FC<EditarCompraProps> = ({
                         Pendiente
                       </button>
                     </div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <div className="flex items-center space-x-2 text-gray-600">
+                      <Calendar size={18} />
+                      <label className="text-sm font-medium text-gray-700">Fecha de Pago</label>
+                    </div>
+                    <input
+                      type="date"
+                      value={payDay}
+                      onChange={(e) => setpayDay(e.target.value)}
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 
+                               focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500
+                               transition-all duration-200"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center space-x-2 text-gray-600">
+                      <Calendar size={18} />
+                      <label className="text-sm font-medium text-gray-700">Fecha de Pedido</label>
+                    </div>
+                    <input
+                      type="date"
+                      value={orderDay}
+                      onChange={(e) => setorderDay(e.target.value)}
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 
+                               focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500
+                               transition-all duration-200"
+                    />
                   </div>
                 </div>
               </div>
