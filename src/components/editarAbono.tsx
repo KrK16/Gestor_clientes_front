@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, MouseEvent } from 'react';
 import { DollarSign, Calendar, X, AlertCircle } from 'lucide-react';
+import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter } from "@heroui/modal";
 
 interface EditarAbonoProps {
   isOpen: boolean;
@@ -7,6 +8,7 @@ interface EditarAbonoProps {
   abonoId: number;
   purchaseId: number;
   currentAmount: number;
+  currentDate: string;
   onUpdate: () => void;
 }
 
@@ -16,32 +18,76 @@ const EditarAbono: React.FC<EditarAbonoProps> = ({
   abonoId,
   purchaseId,
   currentAmount,
+  currentDate,
   onUpdate
 }) => {
-  const [amount, setAmount] = useState<string>('');
+  const [amount, setAmount] = useState<string>(currentAmount.toString());
+  const [formattedAmount, setFormattedAmount] = useState<string>('');
+  const [date, setDate] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen) {
       setAmount(currentAmount.toString());
+      setFormattedAmount(formatCurrency(currentAmount));
+      const formattedDate = formatDateToYYYYMMDD(currentDate);
+      setDate(formattedDate);
       setError(null);
     }
-  }, [isOpen, currentAmount]);
+  }, [isOpen, currentAmount, currentDate]);
 
-  const formatCurrency = (value: string) => {
-    const number = value.replace(/\D/g, '');
+  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.replace(/\D/g, '');
+    if (value) {
+      const numberValue = Number(value);
+      setAmount(numberValue.toString());
+      setFormattedAmount(formatCurrency(numberValue));
+    } else {
+      setAmount('0');
+      setFormattedAmount('');
+    }
+    setError(null);
+  };
+
+  const formatCurrency = (value: number): string => {
     return new Intl.NumberFormat('es-CO', {
       style: 'currency',
       currency: 'COP',
       minimumFractionDigits: 0
-    }).format(Number(number));
+    }).format(value);
   };
 
-  const handleSubmit = async () => {
+  const formatDateToYYYYMMDD = (dateString: string): string => {
+    try {
+      const date = new Date(dateString);
+      return date.toISOString().split('T')[0];
+    } catch (e) {
+      console.error('Error formatting date:', e);
+      return '';
+    }
+  };
+
+  const addOneDay = (dateString: string): string => {
+    if (!dateString) return '';
+    
+    const date = new Date(dateString);
+    date.setDate(date.getDate() + 1);
+    return date.toISOString().split('T')[0];
+  };
+
+  const handleSubmit = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (!amount || Number(amount) <= 0) {
+      setError("Por favor, ingrese un monto válido");
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
-    
+
     try {
       const response = await fetch(`http://26.241.225.40:3000/abonos/${abonoId}`, {
         method: 'PUT',
@@ -50,111 +96,144 @@ const EditarAbono: React.FC<EditarAbonoProps> = ({
         },
         body: JSON.stringify({
           purchaseId: parseInt(purchaseId.toString()),
-          amount: Number(amount.replace(/\D/g, '')),
+          amount: Number(amount),
+          date: addOneDay(date)
         }),
       });
-  
-      if (response.status === 200) {
-        // Call onUpdate to trigger parent component refresh
-        onUpdate();
-        // Close the modal
-        onClose();
-      } else {
-        throw new Error('Error al actualizar el abono');
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Error al actualizar el abono');
       }
+
+      // Actualizar el estado global
+      onUpdate();
+      onClose();
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'Error desconocido');
+      setError(error instanceof Error ? error.message : 'Error al actualizar el abono');
       console.error('Error al actualizar:', error);
     } finally {
       setIsLoading(false);
     }
   };
-  if (!isOpen) return null;
 
   return (
-    <>
-      <div className="fixed inset-0 bg-black/30 z-40" onClick={onClose} />
-      
-      <div className="fixed inset-0 flex items-center justify-center p-4 z-50">
-        <div className="w-full max-w-md bg-white rounded-xl shadow-xl animate-in fade-in">
-          {/* Header */}
-          <div className="p-6 border-b border-gray-100">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="h-8 w-1 bg-gradient-to-b from-blue-600 to-blue-400 rounded-full"/>
-                <h2 className="text-xl font-semibold text-gray-800">
-                  Editar Abono
-                </h2>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      size="md"
+      backdrop="opaque"
+      className="w-full max-w-md"
+    >
+      <ModalContent onClick={(e) => e.stopPropagation()}>
+        {(onClose) => (
+          <>
+            <ModalHeader className="border-b border-gray-100">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="h-8 w-1 bg-gradient-to-b from-blue-600 to-blue-400 rounded-full"/>
+                  <h2 className="text-xl font-semibold text-gray-800">Editar Abono</h2>
+                </div>
+                <button 
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onClose();
+                  }}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <X size={20} className="text-gray-500" />
+                </button>
               </div>
-              <button
-                onClick={onClose}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <X size={20} className="text-gray-500" />
-              </button>
-            </div>
-          </div>
+            </ModalHeader>
 
-          {/* Content */}
-          <div className="p-6 space-y-6">
-            {error && (
-              <div className="flex items-center gap-2 text-red-600 bg-red-50 p-4 rounded-lg">
-                <AlertCircle size={20} />
-                <p>{error}</p>
-              </div>
-            )}
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700">
-                Valor del abono
-              </label>
-              <div className="relative">
-                <DollarSign 
-                  size={20} 
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" 
-                />
-                <input
-                  type="text"
-                  value={formatCurrency(amount)}
-                  onChange={(e) => setAmount(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl
-                           focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500
-                           transition-colors"
-                  placeholder="Ingrese el valor del abono"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Footer */}
-          <div className="p-6 border-t border-gray-100 flex justify-end gap-3">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg
-                       transition-colors"
-            >
-              Cancelar
-            </button>
-            <button
-              onClick={handleSubmit}
-              disabled={isLoading}
-              className="px-4 py-2 bg-blue-500 text-white rounded-lg
-                       hover:bg-blue-600 transition-colors disabled:opacity-50
-                       disabled:cursor-not-allowed flex items-center gap-2"
-            >
-              {isLoading ? (
-                <>
-                  <span className="animate-spin">⏳</span>
-                  Actualizando...
-                </>
-              ) : (
-                'Actualizar Abono'
+            <ModalBody className="p-6 space-y-6">
+              {error && (
+                <div className="flex items-center gap-2 text-red-600 bg-red-50 p-4 rounded-lg animate-shake">
+                  <AlertCircle size={20} />
+                  <p>{error}</p>
+                </div>
               )}
-            </button>
-          </div>
-        </div>
-      </div>
-    </>
+
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700">
+                    Valor del abono
+                  </label>
+                  <div className="relative">
+                    <DollarSign 
+                      size={20} 
+                      className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" 
+                    />
+                    <input
+                      type="text"
+                      value={formattedAmount}
+                      onChange={handleAmountChange}
+                      className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl
+                               focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500
+                               transition-colors"
+                      placeholder="Ingrese el valor del abono"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700">
+                    Fecha del abono
+                  </label>
+                  <div className="relative">
+                    <Calendar 
+                      size={20} 
+                      className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" 
+                    />
+                    <input
+                      type="date"
+                      value={date}
+                      onChange={(e) => setDate(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl
+                               focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500
+                               transition-colors"
+                    />
+                  </div>
+                </div>
+              </div>
+            </ModalBody>
+
+            <ModalFooter className="border-t border-gray-100">
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onClose();
+                  }}
+                  className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleSubmit}
+                  disabled={isLoading || !amount || Number(amount) <= 0}
+                  className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 
+                           transition-colors disabled:opacity-50 disabled:cursor-not-allowed 
+                           flex items-center gap-2"
+                >
+                  {isLoading ? (
+                    <>
+                      <span className="animate-spin">⏳</span>
+                      Actualizando...
+                    </>
+                  ) : (
+                    'Actualizar Abono'
+                  )}
+                </button>
+              </div>
+            </ModalFooter>
+          </>
+        )}
+      </ModalContent>
+    </Modal>
   );
 };
 

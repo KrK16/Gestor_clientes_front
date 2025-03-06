@@ -9,6 +9,8 @@ import AgregarCompra from "@/components/agregarCompra";
 import EditarCompra from "@/components/editarCompra";
 import VerAbonos from "@/components/abonosdecompra";
 import AgregarAbono from "@/components/agregarAbono";
+import EditarAbono from "@/components/editarAbono";
+import InvoiceGenerator from "@/components/InvoiceGenerator";
 
 
 
@@ -33,6 +35,8 @@ interface Purchase {
   price: number;
   customerId: number;
   status: string;
+  orderdate: Date;
+  payday: Date;
   debt: number;
   createdAt: string;
   name: string;
@@ -49,6 +53,7 @@ const Compritas: React.FC = () => {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [selectedPurchaseName, setSelectedPurchaseName] = useState<string>("");
+  const [selectedOrderdate] = useState<Date | null>(null);
   const [selectedStatus, setSelectedStatus] = useState<string>("");
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [purchaseToDelete, setPurchaseToDelete] = useState<number | null>(null);
@@ -64,8 +69,9 @@ const [expandedCustomerId, setExpandedCustomerId] = useState<number | null>(null
   const [isAbonoModalOpen, setIsAbonoModalOpen] = useState(false);
 
   const [isEditAbonoModalOpen, setIsEditAbonoModalOpen] = useState(false);
-  const [selectedAbonoId, setSelectedAbonoId] = useState<number | null>(null);
-  const [selectedAbonoAmount, setSelectedAbonoAmount] = useState<number>(0);
+  const [selectedAbonoId] = useState<number | null>(null);
+  const [selectedAbonoAmount] = useState<number>(0);
+  const [paymentOperationCompleted, setPaymentOperationCompleted] = useState(false);
 
 
   useEffect(() => {
@@ -73,8 +79,24 @@ const [expandedCustomerId, setExpandedCustomerId] = useState<number | null>(null
       try {
         const response = await fetch("http://26.241.225.40:3000/compras");
         const data: Purchase[] = await response.json();
-        setPurchases(data);
-        setFilteredPurchases(data);
+        
+        // Obtener los abonos para cada compra
+        const purchasesWithPayments = await Promise.all(data.map(async (purchase) => {
+          try {
+            const paymentsResponse = await fetch(`http://26.241.225.40:3000/abonos/abonocompra/${purchase.id}`);
+            if (!paymentsResponse.ok) {
+              throw new Error(`Error al obtener abonos para la compra ${purchase.id}`);
+            }
+            const payments = await paymentsResponse.json();
+            return { ...purchase, payments };
+          } catch (error) {
+            console.error(`Error al obtener abonos para la compra ${purchase.id}:`, error);
+            return purchase; // Devolver la compra sin abonos si hay error
+          }
+        }));
+        
+        setPurchases(purchasesWithPayments);
+        setFilteredPurchases(purchasesWithPayments);
       } catch (error) {
         console.error("Error al obtener compras:", error);
       }
@@ -83,14 +105,49 @@ const [expandedCustomerId, setExpandedCustomerId] = useState<number | null>(null
   }, []);
 
   useEffect(() => {
+    const updatePurchasesAfterPaymentChange = async () => {
+      if (paymentOperationCompleted) {
+        try {
+          const response = await fetch("http://26.241.225.40:3000/compras");
+          const data: Purchase[] = await response.json();
+          
+          // Fetch updated abonos for each purchase
+          const purchasesWithPayments = await Promise.all(data.map(async (purchase) => {
+            try {
+              const paymentsResponse = await fetch(`http://26.241.225.40:3000/abonos/abonocompra/${purchase.id}`);
+              if (!paymentsResponse.ok) {
+                throw new Error(`Error al obtener abonos para la compra ${purchase.id}`);
+              }
+              const payments = await paymentsResponse.json();
+              return { ...purchase, payments };
+            } catch (error) {
+              console.error(`Error al obtener abonos para la compra ${purchase.id}:`, error);
+              return purchase; // Return purchase without payments if there's an error
+            }
+          }));
+          
+          setPurchases(purchasesWithPayments);
+          setFilteredPurchases(purchasesWithPayments);
+          setPaymentOperationCompleted(false); // Reset the flag
+        } catch (error) {
+          console.error("Error al actualizar compras después de cambios en pagos:", error);
+        }
+      }
+    };
+    
+    updatePurchasesAfterPaymentChange();
+  }, [paymentOperationCompleted, isAbonosModalOpen, isAbonoModalOpen, isEditAbonoModalOpen]);
+
+  useEffect(() => {
     const filtered = purchases.filter((purchase) => {
       const matchesSearchTerm = purchase.customer.name.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesPurchaseName = selectedPurchaseName ? purchase.name === selectedPurchaseName : true;
       const matchesStatus = selectedStatus ? purchase.status === selectedStatus : true;
-      return matchesSearchTerm && matchesPurchaseName && matchesStatus;
+      const matchesOrderdate = selectedOrderdate ? purchase.orderdate === selectedOrderdate : true;
+      return matchesSearchTerm && matchesPurchaseName && matchesStatus && matchesOrderdate;
     });
     setFilteredPurchases(filtered);
-  }, [searchTerm, selectedPurchaseName, selectedStatus, purchases]);
+  }, [searchTerm, selectedPurchaseName, selectedStatus, purchases, selectedOrderdate]);
 
   const handleViewDetails = (purchase: Purchase) => {
     setSelectedPurchase(purchase);
@@ -132,7 +189,7 @@ const [expandedCustomerId, setExpandedCustomerId] = useState<number | null>(null
   };
 
   const pagarTodo = async (id: number) => {
-    const response = await fetch(`http://26.241.225.40:3000/abonos/abonoTotal/${id}`, {
+      await fetch(`http://26.241.225.40:3000/abonos/abonoTotal/${id}`, {
       method: "GET",
       headers: { "Content-Type": "application/json" },
     });
@@ -156,6 +213,7 @@ const [expandedCustomerId, setExpandedCustomerId] = useState<number | null>(null
   const handleAddAbono = (abono: any) => {
     // Lógica para manejar el abono agregado
     console.log("Abono agregado:", abono);
+    setPaymentOperationCompleted(true);
   };
 
   const openAbonoModal = (purchaseId: number) => {
@@ -163,6 +221,31 @@ const [expandedCustomerId, setExpandedCustomerId] = useState<number | null>(null
     setIsAbonoModalOpen(true);
   };
 
+  const updatePurchaseData = async () => {
+    try {
+      const response = await fetch("http://26.241.225.40:3000/compras");
+      const data: Purchase[] = await response.json();
+      
+      const purchasesWithPayments = await Promise.all(data.map(async (purchase) => {
+        try {
+          const paymentsResponse = await fetch(`http://26.241.225.40:3000/abonos/abonocompra/${purchase.id}`);
+          if (!paymentsResponse.ok) {
+            throw new Error(`Error al obtener abonos para la compra ${purchase.id}`);
+          }
+          const payments = await paymentsResponse.json();
+          return { ...purchase, payments };
+        } catch (error) {
+          console.error(`Error al obtener abonos para la compra ${purchase.id}:`, error);
+          return purchase;
+        }
+      }));
+      
+      setPurchases(purchasesWithPayments);
+      setFilteredPurchases(purchasesWithPayments);
+    } catch (error) {
+      console.error("Error al actualizar los datos:", error);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100/50 pb-10">
@@ -315,120 +398,133 @@ const [expandedCustomerId, setExpandedCustomerId] = useState<number | null>(null
       {purchases.map((purchase) => (
         <div
           key={purchase.id}
-          className="bg-white rounded-lg p-4 sm:p-6 shadow-sm hover:shadow-md transition-all duration-200"
+          className="bg-white rounded-xl p-6 shadow-sm hover:shadow-md transition-all duration-200"
         >
-          <div className="flex flex-col lg:flex-row justify-between items-start gap-4">
-            {/* Purchase Information */}
-            <div className="space-y-4 w-full lg:w-auto">
-              <h4 className="text-lg sm:text-xl font-semibold text-gray-800">{purchase.name}</h4>
-              <div className="flex flex-col space-y-2 text-gray-600">
-                <div className="flex flex-wrap items-center gap-2">
+          {/* Encabezado de la compra */}
+          <div className="flex flex-col lg:flex-row justify-between items-start gap-6">
+            {/* Información principal */}
+            <div className="flex-1 space-y-4">
+              <div className="flex items-center justify-between">
+                <h4 className="text-lg sm:text-xl font-semibold text-gray-800">{purchase.name}</h4>
+                <span className={`px-4 py-1.5 rounded-full text-sm font-medium 
+                  ${purchase.status === "pagado" 
+                    ? "bg-green-100 text-green-800" 
+                    : "bg-yellow-100 text-yellow-800"}`}
+                >
+                  {purchase.status === "pagado" ? "✓ Pagado" : "⏳ Pendiente"}
+                </span>
+              </div>
+
+              {/* Grid de información */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
                   <Calendar size={16} className="text-blue-500 shrink-0" />
-                  <span className="font-medium shrink-0">Fecha:</span>
-                  <span>{new Date(purchase.createdAt).toLocaleDateString()}</span>
+                  <div>
+                    <p className="text-xs text-gray-500">Fecha</p>
+                    <p className="text-sm font-medium">{new Date(purchase.orderdate).toLocaleDateString()}</p>
+                  </div>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
+
+                <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
                   <DollarSign size={16} className="text-green-500 shrink-0" />
-                  <span className="font-medium shrink-0">Precio:</span>
-                  <span className="text-lg font-semibold text-green-600">
-                    {formatCurrency(purchase.price)}
-                  </span>
+                  <div>
+                    <p className="text-xs text-gray-500">Precio total</p>
+                    <p className="text-sm font-semibold text-green-600">{formatCurrency(purchase.price)}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
+                  <DollarSign size={16} className="text-red-500 shrink-0" />
+                  <div>
+                    <p className="text-xs text-gray-500">Deuda pendiente</p>
+                    <p className="text-sm font-semibold text-red-600">{formatCurrency(purchase.debt)}</p>
+                  </div>
                 </div>
               </div>
             </div>
+          </div>
 
-            {/* Status and Actions */}
-            <div className="flex flex-col items-start lg:items-end space-y-4 w-full lg:w-auto">
-              <span className={`px-4 py-2 rounded-full text-sm font-semibold w-full sm:w-auto text-center
-                ${purchase.status === "pagado" 
-                  ? "bg-green-100 text-green-800" 
-                  : "bg-yellow-100 text-yellow-800"}`}
+          {/* Barra separadora */}
+          <div className="h-px bg-gray-100 my-6"></div>
+
+          {/* Botones de acción */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+            <Tooltip content="Ver detalles">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleViewDetails(purchase);
+                }}
+                className="inline-flex items-center justify-center gap-1.5 px-3 py-2 
+                         bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg transition-colors"
               >
-                {purchase.status === "pagado" ? "✓ Pagado" : "⏳ Pendiente"}
-              </span>
-              
-              {/* Action Buttons */}
-<div className="grid grid-cols-2 sm:flex flex-wrap gap-2 w-full lg:w-auto">
-  <Tooltip content="Ver detalles">
-    <button
-      onClick={(e) => {
-        e.stopPropagation();
-        handleViewDetails(purchase);
-      }}
-      className="inline-flex items-center justify-center gap-1.5 px-3 py-2 
-                 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg transition-colors
-                 w-full sm:w-auto"
-    >
-      <Package size={16} className="shrink-0" />
-      <span className="text-xs sm:text-sm font-medium truncate">Ver</span>
-    </button>
-  </Tooltip>
+                <Package size={16} className="shrink-0" />
+                <span className="text-xs font-medium">Ver</span>
+              </button>
+            </Tooltip>
 
-  <Tooltip content="Historial de abonos">
-    <button
-      onClick={(e) => {
-        e.stopPropagation();
-        setSelectedPurchaseId(purchase.id);
-        setIsAbonosModalOpen(true);
-      }}
-      className="inline-flex items-center justify-center gap-1.5 px-3 py-2 
-                 bg-purple-50 hover:bg-purple-100 text-purple-600 rounded-lg transition-colors
-                 w-full sm:w-auto"
-    >
-      <DollarSign size={16} className="shrink-0" />
-      <span className="text-xs sm:text-sm font-medium truncate">Historial de abonos</span>
-    </button>
-  </Tooltip>
+            <Tooltip content="Descargar factura">
+              <InvoiceGenerator purchase={purchase} />
+            </Tooltip>
 
-  <Tooltip content="Nuevo abono">
-    <button
-      onClick={(e) => {
-        e.stopPropagation();
-        openAbonoModal(purchase.id);
-      }}
-      className="inline-flex items-center justify-center gap-1.5 px-3 py-2 
-                 bg-green-50 hover:bg-green-100 text-green-600 rounded-lg transition-colors
-                 w-full sm:w-auto"
-    >
-      <Plus size={16} className="shrink-0" />
-      <span className="text-xs sm:text-sm font-medium truncate">Añadir Abono</span>
-    </button>
-  </Tooltip>
+            <Tooltip content="Historial de abonos">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedPurchaseId(purchase.id);
+                  setIsAbonosModalOpen(true);
+                }}
+                className="inline-flex items-center justify-center gap-1.5 px-3 py-2 
+                         bg-purple-50 hover:bg-purple-100 text-purple-600 rounded-lg transition-colors"
+              >
+                <DollarSign size={16} className="shrink-0" />
+                <span className="text-xs font-medium">Historial</span>
+              </button>
+            </Tooltip>
 
-  <Tooltip content="Modificar compra">
-    <button
-      onClick={(e) => {
-        e.stopPropagation();
-        setPurchaseToEdit(purchase);
-        setIsEditModalOpen(true);
-      }}
-      className="inline-flex items-center justify-center gap-1.5 px-3 py-2 
-                 bg-amber-50 hover:bg-amber-100 text-amber-600 rounded-lg transition-colors
-                 w-full sm:w-auto"
-    >
-      <Edit size={16} className="shrink-0" />
-      <span className="text-xs sm:text-sm font-medium truncate">Editar Compra</span>
-    </button>
-  </Tooltip>
+            <Tooltip content="Nuevo abono">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openAbonoModal(purchase.id);
+                }}
+                className="inline-flex items-center justify-center gap-1.5 px-3 py-2 
+                         bg-green-50 hover:bg-green-100 text-green-600 rounded-lg transition-colors"
+              >
+                <Plus size={16} className="shrink-0" />
+                <span className="text-xs font-medium">Abonar</span>
+              </button>
+            </Tooltip>
 
-  <Tooltip content="Eliminar compra">
-    <button
-      onClick={(e) => {
-        e.stopPropagation();
-        setPurchaseToDelete(purchase.id);
-        setIsDeleteModalOpen(true);
-      }}
-      className="inline-flex items-center justify-center gap-1.5 px-3 py-2 
-                 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg transition-colors
-                 w-full sm:w-auto col-span-2 sm:col-span-1"
-    >
-      <Trash size={16} className="shrink-0" />
-      <span className="text-xs sm:text-sm font-medium truncate">Borrar</span>
-    </button>
-  </Tooltip>
-</div>
+            <Tooltip content="Modificar compra">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setPurchaseToEdit(purchase);
+                  setIsEditModalOpen(true);
+                }}
+                className="inline-flex items-center justify-center gap-1.5 px-3 py-2 
+                         bg-amber-50 hover:bg-amber-100 text-amber-600 rounded-lg transition-colors"
+              >
+                <Edit size={16} className="shrink-0" />
+                <span className="text-xs font-medium">Editar</span>
+              </button>
+            </Tooltip>
 
-            </div>
+            <Tooltip content="Eliminar compra">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setPurchaseToDelete(purchase.id);
+                  setIsDeleteModalOpen(true);
+                }}
+                className="inline-flex items-center justify-center gap-1.5 px-3 py-2 
+                         bg-red-50 hover:bg-red-100 text-red-600 rounded-lg transition-colors"
+              >
+                <Trash size={16} className="shrink-0" />
+                <span className="text-xs font-medium">Borrar</span>
+              </button>
+            </Tooltip>
           </div>
         </div>
       ))}
@@ -468,7 +564,7 @@ const [expandedCustomerId, setExpandedCustomerId] = useState<number | null>(null
                   </div>
                   <div className="flex items-center space-x-2 text-gray-600 mb-2">
                     <Calendar size={20} />
-                    <p><strong>Fecha de Creación:</strong> {new Date(selectedPurchase.createdAt).toLocaleString()}</p>
+                    <p><strong>Fecha de Creación:</strong> {new Date(selectedPurchase.orderdate).toLocaleString().split(",")[0]}</p>
                   </div>
                   <h3 className="text-lg font-semibold mt-4">Productos</h3>
                   <div className="overflow-x-auto">
@@ -485,7 +581,7 @@ const [expandedCustomerId, setExpandedCustomerId] = useState<number | null>(null
                           <tr key={product.id} className="border-t">
                             <td className="py-2 px-4">{product.name}</td>
                             <td className="py-2 px-4">{product.quantity}</td>
-                            <td className="py-2 px-4"> Precio {formatCurrency(product.price)}</td>
+                            <td className="py-2 px-4">{formatCurrency(product.price)}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -529,7 +625,10 @@ const [expandedCustomerId, setExpandedCustomerId] = useState<number | null>(null
       {selectedPurchaseId !== null && (
         <VerAbonos
           isOpen={isAbonosModalOpen}
-          onClose={() => setIsAbonosModalOpen(false)}
+          onClose={() => {
+            setIsAbonosModalOpen(false);
+            updatePurchaseData(); // Actualizar datos después de cerrar el modal
+          }}
           purchaseId={selectedPurchaseId}
         />
 
@@ -537,13 +636,15 @@ const [expandedCustomerId, setExpandedCustomerId] = useState<number | null>(null
       {selectedAbonoId !== null && (
         <EditarAbono
           isOpen={isEditAbonoModalOpen}
-          onClose={() => setIsEditAbonoModalOpen(false)}
+          onClose={() => {
+            setIsEditAbonoModalOpen(false);
+            updatePurchaseData(); // Actualizar datos después de editar
+          }}
           abonoId={selectedAbonoId}
           purchaseId={selectedPurchaseId || 0}
           currentAmount={selectedAbonoAmount}
           onUpdate={() => {
-            // Refresh your data after update
-            window.location.reload();
+            updatePurchaseData(); // Actualizar datos después de actualizar
           }}
         />
       )}
@@ -551,7 +652,10 @@ const [expandedCustomerId, setExpandedCustomerId] = useState<number | null>(null
       {selectedPurchaseId !== null && (
         <AgregarAbono
           isOpen={isAbonoModalOpen}
-          onClose={() => setIsAbonoModalOpen(false)}
+          onClose={() => {
+            setIsAbonoModalOpen(false);
+            setPaymentOperationCompleted(true); // Set flag when modal closes
+          }}
           onAdd={handleAddAbono}
           purchaseId={selectedPurchaseId}
         />

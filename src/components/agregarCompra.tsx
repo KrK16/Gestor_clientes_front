@@ -233,7 +233,7 @@ const AgregarCompra: React.FC<AgregarCompraProps> = ({ isOpen, onClose, onAdd })
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-700">Fecha de Pago</label>
+                    <label className="text-sm font-medium text-gray-700">Fecha de pago</label>
                     <input
                       type="date"
                       value={payday}
@@ -244,7 +244,7 @@ const AgregarCompra: React.FC<AgregarCompraProps> = ({ isOpen, onClose, onAdd })
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-700">Fecha de Pedido</label>
+                    <label className="text-sm font-medium text-gray-700">Fecha de compra</label>
                     <input
                       type="date"
                       value={orderdate}

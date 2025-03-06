@@ -151,6 +151,9 @@ const EditarCompra: React.FC<EditarCompraProps> = ({
         price: Number(product.price.replace(/\D/g, "")),
       }));
 
+      console.log(payDay + " " + orderDay 
+      );
+
       const response = await fetch(
         `http://26.241.225.40:3000/compras/${purchase.id}`,
         {
