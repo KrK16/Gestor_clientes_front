@@ -2,6 +2,7 @@ import React from "react";
 import {Modal, ModalContent, ModalHeader, ModalBody, ModalFooter } from "@heroui/modal";
 
 import {Button} from "@heroui/button";
+import { createApiUrl } from "@/config/api";
 
 interface EliminarCompraProps {
   isOpen: boolean;
@@ -13,7 +14,7 @@ interface EliminarCompraProps {
 const EliminarCompra: React.FC<EliminarCompraProps> = ({ isOpen, onClose, purchaseId, onDelete }) => {
   const handleDelete = async () => {
     try {
-      const response = await fetch(`http://26.241.225.40:3000/compras/${purchaseId}`, {
+      const response = await fetch(createApiUrl('/compras', purchaseId.toString()), {
         method: "DELETE",
       });
       if (response.ok) {

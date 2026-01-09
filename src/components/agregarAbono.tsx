@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter } from "@heroui/modal";
 import { Button } from "@heroui/button";
 import { AlertCircle, DollarSign, Calendar, X } from "lucide-react";
+import { createApiUrl } from "@/config/api";
 
 interface AgregarAbonoProps {
   purchaseId: number;
@@ -55,7 +56,7 @@ const AgregarAbono: React.FC<AgregarAbonoProps> = ({ purchaseId, onAdd, isOpen, 
     setError(null);
 
     try {
-      const response = await fetch("http://26.241.225.40:3000/abonos", {
+      const response = await fetch(createApiUrl('/abonos'), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

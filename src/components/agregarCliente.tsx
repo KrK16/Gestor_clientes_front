@@ -3,6 +3,7 @@ import { Button } from '@heroui/button';
 import { Input } from '@heroui/input';
 import { Card } from '@heroui/card';
 import { Modal } from '@heroui/modal';
+import { createApiUrl } from "@/config/api";
 
 interface Cliente {
   name: string;
@@ -20,7 +21,7 @@ const AgregarCliente: React.FC = () => {
     setMensaje('');
 
     try {
-      const response = await fetch('http://localhost:3000/clientes', {
+      const response = await fetch(createApiUrl('/clientes'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, phone })
