@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter } from "@heroui/modal";
 import EditarAbono from './editarAbono';
+import { createApiUrl } from "@/config/api";
 import { 
   DollarSign, 
   Calendar, 
@@ -68,7 +69,7 @@ const VerAbonos: React.FC<VerAbonosProps> = ({ isOpen, onClose, purchaseId }) =>
     
     setIsLoading(true);
     try {
-      const response = await fetch(`http://26.241.225.40:3000/abonos/abonocompra/${purchaseId}`);
+      const response = await fetch(createApiUrl('/abonos/abonocompra', purchaseId.toString()));
       if (!response.ok) {
         throw new Error('Error al cargar los abonos');
       }
@@ -84,7 +85,7 @@ const VerAbonos: React.FC<VerAbonosProps> = ({ isOpen, onClose, purchaseId }) =>
   const handleDeletePayment = async (paymentId: number) => {
     setIsDeletingPayment(paymentId);
     try {
-      const response = await fetch(`http://26.241.225.40:3000/abonos/${paymentId}`, {
+      const response = await fetch(createApiUrl('/abonos', paymentId.toString()), {
         method: 'DELETE',
       });
       

@@ -1,60 +1,28 @@
-import React, { useState, useEffect } from "react";
-import { User, ShoppingBag, Phone, Calendar, DollarSign, Package, Search, Plus, Edit, Trash } from "lucide-react";
+import React, { useState } from "react";
+import { ShoppingBag, Plus, User, Calendar, DollarSign } from "lucide-react";
 import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter } from "@heroui/modal";
-import { Tooltip } from "@heroui/tooltip";
-
 import { Button } from "@heroui/button";
+import { Purchase } from "@/types/purchases";
+import { usePurchases } from "@/hooks/usePurchases";
+import { useFilters } from "@/hooks/useFilters";
+
 import EliminarCompra from "@/components/eliminarCompra";
 import AgregarCompra from "@/components/agregarCompra";
 import EditarCompra from "@/components/editarCompra";
 import VerAbonos from "@/components/abonosdecompra";
 import AgregarAbono from "@/components/agregarAbono";
 import EditarAbono from "@/components/editarAbono";
-import InvoiceGenerator from "@/components/InvoiceGenerator";
 
-
-
-interface Product {
-  id: number;
-  name: string;
-  purchaseId: number;
-  quantity: number;
-  price: number;
-  createdAt: string;
-}
-
-interface Customer {
-  id: number;
-  name: string;
-  phone: string;
-  createdAt: string;
-}
-
-interface Purchase {
-  id: number;
-  price: number;
-  customerId: number;
-  status: string;
-  orderdate: Date;
-  payday: Date;
-  debt: number;
-  createdAt: string;
-  name: string;
-  products: Product[];
-  customer: Customer;
-
-}
-
+import CustomerCard from "@/components/purchases/CustomerCard";
+import PurchaseList from "@/components/purchases/PurchaseList";
+import FilterBar from "@/components/purchases/FilterBar";
 
 const Compritas: React.FC = () => {
-  const [purchases, setPurchases] = useState<Purchase[]>([]);
-  const [filteredPurchases, setFilteredPurchases] = useState<Purchase[]>([]);
+  const [expandedCustomerId, setExpandedCustomerId] = useState<number | null>(null);
   const [selectedPurchase, setSelectedPurchase] = useState<Purchase | null>(null);
   const { isOpen, onOpen, onClose } = useDisclosure();
-  const [searchTerm, setSearchTerm] = useState<string>("");
-  const [selectedPurchaseName, setSelectedPurchaseName] = useState<string>("");
-  const [selectedOrderdate] = useState<Date | null>(null);
-  const [selectedStatus, setSelectedStatus] = useState<string>("");
+  
+  // Modal states
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [purchaseToDelete, setPurchaseToDelete] = useState<number | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -62,158 +30,37 @@ const Compritas: React.FC = () => {
   const [purchaseToEdit, setPurchaseToEdit] = useState<Purchase | null>(null);
   const [isAbonosModalOpen, setIsAbonosModalOpen] = useState(false);
   const [selectedPurchaseId, setSelectedPurchaseId] = useState<number | null>(null);
-// Primero, añade este nuevo estado al componente Compritas
-const [expandedCustomerId, setExpandedCustomerId] = useState<number | null>(null);
-
-// Luego, modifica la sección del renderizado de las cards:
   const [isAbonoModalOpen, setIsAbonoModalOpen] = useState(false);
-
   const [isEditAbonoModalOpen, setIsEditAbonoModalOpen] = useState(false);
   const [selectedAbonoId] = useState<number | null>(null);
-  const [selectedAbonoAmount] = useState<number>(0);
-  const [paymentOperationCompleted, setPaymentOperationCompleted] = useState(false);
 
+  // Custom hooks
+  const {
+    purchases,
+    loading,
+    error,
+    groupedPurchases,
+    handleDeletePurchase,
+    handleAddPurchase,
+    handleUpdatePurchase,
+    handlePayAll,
+    refreshPurchases,
+    formatCurrency,
+    getCustomerPurchaseCount,
+    getCustomerTotalDebt,
+  } = usePurchases();
 
-  useEffect(() => {
-    const fetchPurchases = async () => {
-      try {
-        const response = await fetch("http://26.241.225.40:3000/compras");
-        const data: Purchase[] = await response.json();
-        
-        // Obtener los abonos para cada compra
-        const purchasesWithPayments = await Promise.all(data.map(async (purchase) => {
-          try {
-            const paymentsResponse = await fetch(`http://26.241.225.40:3000/abonos/abonocompra/${purchase.id}`);
-            if (!paymentsResponse.ok) {
-              throw new Error(`Error al obtener abonos para la compra ${purchase.id}`);
-            }
-            const payments = await paymentsResponse.json();
-            return { ...purchase, payments };
-          } catch (error) {
-            console.error(`Error al obtener abonos para la compra ${purchase.id}:`, error);
-            return purchase; // Devolver la compra sin abonos si hay error
-          }
-        }));
-        
-        setPurchases(purchasesWithPayments);
-        setFilteredPurchases(purchasesWithPayments);
-      } catch (error) {
-        console.error("Error al obtener compras:", error);
-      }
-    };
-    fetchPurchases();
-  }, []);
+  const {
+    filters,
+    updateFilter,
+    getUniquePurchaseNames,
+    getUniqueStatuses,
+  } = useFilters(purchases);
 
-  useEffect(() => {
-    const updatePurchasesAfterPaymentChange = async () => {
-      if (paymentOperationCompleted) {
-        try {
-          const response = await fetch("http://26.241.225.40:3000/compras");
-          const data: Purchase[] = await response.json();
-          
-          // Fetch updated abonos for each purchase
-          const purchasesWithPayments = await Promise.all(data.map(async (purchase) => {
-            try {
-              const paymentsResponse = await fetch(`http://26.241.225.40:3000/abonos/abonocompra/${purchase.id}`);
-              if (!paymentsResponse.ok) {
-                throw new Error(`Error al obtener abonos para la compra ${purchase.id}`);
-              }
-              const payments = await paymentsResponse.json();
-              return { ...purchase, payments };
-            } catch (error) {
-              console.error(`Error al obtener abonos para la compra ${purchase.id}:`, error);
-              return purchase; // Return purchase without payments if there's an error
-            }
-          }));
-          
-          setPurchases(purchasesWithPayments);
-          setFilteredPurchases(purchasesWithPayments);
-          setPaymentOperationCompleted(false); // Reset the flag
-        } catch (error) {
-          console.error("Error al actualizar compras después de cambios en pagos:", error);
-        }
-      }
-    };
-    
-    updatePurchasesAfterPaymentChange();
-  }, [paymentOperationCompleted, isAbonosModalOpen, isAbonoModalOpen, isEditAbonoModalOpen]);
-
-  useEffect(() => {
-    const filtered = purchases.filter((purchase) => {
-      const matchesSearchTerm = purchase.customer.name.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesPurchaseName = selectedPurchaseName ? purchase.name === selectedPurchaseName : true;
-      const matchesStatus = selectedStatus ? purchase.status === selectedStatus : true;
-      const matchesOrderdate = selectedOrderdate ? purchase.orderdate === selectedOrderdate : true;
-      return matchesSearchTerm && matchesPurchaseName && matchesStatus && matchesOrderdate;
-    });
-    setFilteredPurchases(filtered);
-  }, [searchTerm, selectedPurchaseName, selectedStatus, purchases, selectedOrderdate]);
-
+  // Event handlers
   const handleViewDetails = (purchase: Purchase) => {
     setSelectedPurchase(purchase);
     onOpen();
-  };
-
-  const handleDeletePurchase = (id: number) => {
-    setPurchases(purchases.filter((purchase) => purchase.id !== id));
-    setFilteredPurchases(filteredPurchases.filter((purchase) => purchase.id !== id));
-  };
-
-  const handleAddPurchase = (newPurchase: Purchase) => {
-    setPurchases([...purchases, newPurchase]);
-    setFilteredPurchases([...filteredPurchases, newPurchase]);
-  };
-
-  const handleUpdatePurchase = (updatedPurchase: Purchase) => {
-    const updatedPurchases = purchases.map((purchase) =>
-      purchase.id === updatedPurchase.id ? updatedPurchase : purchase
-    );
-    setPurchases(updatedPurchases);
-    setFilteredPurchases(updatedPurchases);
-  };
-
-  const groupedPurchases = filteredPurchases.reduce((acc, purchase) => {
-    const customerId = purchase.customer.id;
-    if (!acc[customerId]) {
-      acc[customerId] = {
-        customer: purchase.customer,
-        purchases: [],
-      };
-    }
-    acc[customerId].purchases.push(purchase);
-    return acc;
-  }, {} as Record<number, { customer: Customer; purchases: Purchase[] }>);
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' }).format(value).replace(/,00$/, '');
-  };
-
-  const pagarTodo = async (id: number) => {
-      await fetch(`http://26.241.225.40:3000/abonos/abonoTotal/${id}`, {
-      method: "GET",
-      headers: { "Content-Type": "application/json" },
-    });
-    window.location.reload();
-  }
-
-  const contadorCompras = (id: number) => {
-    let contador = 0;
-    //Compras obtenidas de la API
-    purchases.map((purchase) => {
-      //Si el id del cliente es igual al id del cliente de la compra
-      if (purchase.customer.id === id) {
-        //Aumentar el contador de cada compra
-        contador++;
-      }
-    });
-
-    return contador
-  }
-
-  const handleAddAbono = (abono: any) => {
-    // Lógica para manejar el abono agregado
-    console.log("Abono agregado:", abono);
-    setPaymentOperationCompleted(true);
   };
 
   const openAbonoModal = (purchaseId: number) => {
@@ -221,323 +68,197 @@ const [expandedCustomerId, setExpandedCustomerId] = useState<number | null>(null
     setIsAbonoModalOpen(true);
   };
 
-  const updatePurchaseData = async () => {
-    try {
-      const response = await fetch("http://26.241.225.40:3000/compras");
-      const data: Purchase[] = await response.json();
-      
-      const purchasesWithPayments = await Promise.all(data.map(async (purchase) => {
-        try {
-          const paymentsResponse = await fetch(`http://26.241.225.40:3000/abonos/abonocompra/${purchase.id}`);
-          if (!paymentsResponse.ok) {
-            throw new Error(`Error al obtener abonos para la compra ${purchase.id}`);
-          }
-          const payments = await paymentsResponse.json();
-          return { ...purchase, payments };
-        } catch (error) {
-          console.error(`Error al obtener abonos para la compra ${purchase.id}:`, error);
-          return purchase;
-        }
-      }));
-      
-      setPurchases(purchasesWithPayments);
-      setFilteredPurchases(purchasesWithPayments);
-    } catch (error) {
-      console.error("Error al actualizar los datos:", error);
-    }
+  const handleAddAbono = () => {
+    refreshPurchases();
   };
+
+  const updatePurchaseData = () => {
+    refreshPurchases();
+  };
+
+  // Actions object for PurchaseList component
+  const purchaseActions = {
+    handleViewDetails,
+    handleDeletePurchase,
+    handleAddPurchase,
+    handleUpdatePurchase,
+    openAbonoModal,
+    setSelectedPurchaseId,
+    setIsAbonosModalOpen,
+    setPurchaseToEdit,
+    setIsEditModalOpen,
+    setPurchaseToDelete,
+    setIsDeleteModalOpen,
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100/50 pb-10 flex items-center justify-center">
+        <div className="text-gray-600">Cargando compras...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100/50 pb-10 flex items-center justify-center">
+        <div className="text-red-600">Error: {error}</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100/50 pb-10">
       <style>{customStyles}</style>
-      <div className=" top-0 z-50 glass-morphism">
-        <div className="max-w-7xl mx-auto py-4 px-6">
-          <div className="flex  sm:flex-row justify-between flex-start items-center gap-4">
-            <div className="flex items-center space-x-4">
-              <div className="h-10 w-1 bg-gradient-to-b from-blue-600 to-blue-400 rounded-full"></div>
-              <h1 className="text-2xl font-medium bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-gray-600">
-                Gestión de Clientes
-              </h1>
+      
+      {/* Enhanced Header */}
+      <header className="sticky top-0 z-50 backdrop-blur-xl bg-white/80 border-b border-gray-200/50 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="flex items-center justify-between">
+            {/* Left Section - Title and Stats */}
+            <div className="flex items-center space-x-6">
+              <div className="flex items-center space-x-3">
+                <div className="flex items-center justify-center w-12 h-12 bg-gradient-to-br from-blue-600 to-blue-500 rounded-xl shadow-lg">
+                  <Plus className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
+                    Gestión de Clientes
+                  </h1>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Administra compras y abonos de forma eficiente
+                  </p>
+                </div>
+              </div>
             </div>
-            <Button
-              className="bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-lg shadow-blue-500/25 
-                       hover:shadow-blue-500/40 border-none px-6 h-11 rounded-xl font-medium
-                       transition-all duration-300 hover:scale-[1.02]"
-              onPress={() => setIsAddModalOpen(true)}
-              startContent={<Plus className="h-5 w-5" />}
-            >
-              Nueva Compra
-            </Button>
+
+            {/* Right Section - CTA Button */}
+            <div className="flex items-center space-x-3">
+              <Button
+                className="bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-lg shadow-blue-500/25 
+                         hover:shadow-blue-500/40 border-none px-6 py-3 rounded-xl font-semibold
+                         transition-all duration-300 hover:scale-[1.03] hover:from-blue-700 hover:to-blue-600
+                         active:scale-[0.98]"
+                onPress={() => setIsAddModalOpen(true)}
+                startContent={<Plus className="h-5 w-5" />}
+                size="lg"
+              >
+                <span className="hidden sm:inline">Nueva Compra</span>
+                <span className="sm:hidden">Nueva</span>
+              </Button>
+            </div>
+          </div>
+
+          {/* Quick Stats Bar */}
+          <div className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="stat-card bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-4 border border-blue-200 hover:shadow-md transition-all duration-300 hover:scale-[1.02] cursor-pointer">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-blue-600 uppercase tracking-wide">Clientes</p>
+                  <p className="text-xl font-bold text-blue-900 mt-1">
+                    {Object.keys(groupedPurchases).length}
+                  </p>
+                </div>
+                <div className="w-8 h-8 bg-blue-200 rounded-full flex items-center justify-center">
+                  <User className="h-4 w-4 text-blue-600" />
+                </div>
+              </div>
+            </div>
+
+            <div className="stat-card bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-4 border border-green-200 hover:shadow-md transition-all duration-300 hover:scale-[1.02] cursor-pointer">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-green-600 uppercase tracking-wide">Compras</p>
+                  <p className="text-xl font-bold text-green-900 mt-1">
+                    {purchases.length}
+                  </p>
+                </div>
+                <div className="w-8 h-8 bg-green-200 rounded-full flex items-center justify-center">
+                  <ShoppingBag className="h-4 w-4 text-green-600" />
+                </div>
+              </div>
+            </div>
+
+            <div className="stat-card bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-lg p-4 border border-yellow-200 hover:shadow-md transition-all duration-300 hover:scale-[1.02] cursor-pointer">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-yellow-600 uppercase tracking-wide">Pendientes</p>
+                  <p className="text-xl font-bold text-yellow-900 mt-1">
+                    {purchases.filter(p => p.status === 'pendiente').length}
+                  </p>
+                </div>
+                <div className="w-8 h-8 bg-yellow-200 rounded-full flex items-center justify-center">
+                  <Calendar className="h-4 w-4 text-yellow-600" />
+                </div>
+              </div>
+            </div>
+
+            <div className="stat-card bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-4 border border-purple-200 hover:shadow-md transition-all duration-300 hover:scale-[1.02] cursor-pointer">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-purple-600 uppercase tracking-wide">Deuda Total</p>
+                  <p className="text-xl font-bold text-purple-900 mt-1">
+                    {formatCurrency(
+                      purchases
+                        .filter(p => p.status === 'pendiente')
+                        .reduce((sum, p) => sum + (p.debt || 0), 0)
+                    )}
+                  </p>
+                </div>
+                <div className="w-8 h-8 bg-purple-200 rounded-full flex items-center justify-center">
+                  <DollarSign className="h-4 w-4 text-purple-600" />
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
+      </header>
 
       <div className="p-8">
-        <div className="  gap-6">
-          {/* Filtros y búsqueda */}
-          <div className="mb-7 max-w-7xl mx-auto px-4 sm:px-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {/* Barra de búsqueda */}
-              <div className="w-full">
-                <label className="text-sm font-medium text-gray-700 mb-2 block">Búsqueda</label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-                  <input
-                    type="text"
-                    placeholder="Buscar cliente..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border-[0.5px] border-gray-200 rounded-lg focus:ring-focus:border-transparent"
+        {/* Filters */}
+        <FilterBar
+          searchTerm={filters.searchTerm}
+          selectedPurchaseName={filters.selectedPurchaseName}
+          selectedStatus={filters.selectedStatus}
+          onSearchChange={(value) => updateFilter('searchTerm', value)}
+          onPurchaseNameChange={(value) => updateFilter('selectedPurchaseName', value)}
+          onStatusChange={(value) => updateFilter('selectedStatus', value)}
+          uniquePurchaseNames={getUniquePurchaseNames()}
+          uniqueStatuses={getUniqueStatuses()}
+        />
+
+        {/* Customer Cards */}
+        <div className="max-w-7xl mx-auto px-6">
+          {Object.values(groupedPurchases).map((customerWithPurchases) => {
+            const isExpanded = expandedCustomerId === customerWithPurchases.customer.id;
+            const totalDebt = getCustomerTotalDebt(customerWithPurchases.customer.id);
+            const purchaseCount = getCustomerPurchaseCount(customerWithPurchases.customer.id);
+
+            return (
+              <div key={customerWithPurchases.customer.id}>
+                <CustomerCard
+                  customerWithPurchases={customerWithPurchases}
+                  isExpanded={isExpanded}
+                  onToggle={() => setExpandedCustomerId(isExpanded ? null : customerWithPurchases.customer.id)}
+                  totalDebt={totalDebt}
+                  purchaseCount={purchaseCount}
+                  onPayAll={handlePayAll}
+                />
+
+                {isExpanded && (
+                  <PurchaseList
+                    purchases={customerWithPurchases.purchases}
+                    formatCurrency={formatCurrency}
+                    actions={purchaseActions}
                   />
-                </div>
+                )}
               </div>
-
-              {/* Filtro de Compras */}
-              <div className="w-full">
-                <label className="text-sm font-medium text-gray-700 mb-2 block">Filtrar Compras</label>
-                <div className="relative">
-                  <Package className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-                  <select
-                    value={selectedPurchaseName}
-                    onChange={(e) => setSelectedPurchaseName(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    <option value="">Todas las compras</option>
-                    {Array.from(new Set(purchases.map((purchase) => purchase.name))).map((name) => (
-                      <option key={name} value={name}>{name}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Filtro de Estado */}
-              <div className="w-full">
-                <label className="text-sm font-medium text-gray-700 mb-2 block">Estado</label>
-                <div className="relative">
-                  <Package className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-                  <select
-                    value={selectedStatus}
-                    onChange={(e) => setSelectedStatus(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    <option value="">Todos los estados</option>
-                    <option value="pagado">Pagado</option>
-                    <option value="pendiente">Pendiente</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="max-w-7xl mx-auto px-6">
-  {Object.values(groupedPurchases).map(({ customer, purchases }) => {
-    const isExpanded = expandedCustomerId === customer.id;
-    const totalDebt = purchases
-      .filter((purchase) => purchase.status === "pendiente")
-      .reduce((sum, purchase) => sum + purchase.debt, 0);
-
-    return (
-      <div key={customer.id} className="mb-4">
-        {/* Card Principal del Cliente - Horizontal */}
-        <div 
-          onClick={() => setExpandedCustomerId(isExpanded ? null : customer.id)}
-          className="bg-white rounded-lg shadow-md hover:shadow-lg transition-all duration-300 cursor-pointer"
-        >
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between p-4 lg:p-6 gap-4">
-            {/* Información del Cliente */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-              <div className="bg-gradient-to-r from-blue-500 to-teal-400 p-3 rounded-full">
-                <User size={24} className="text-white" />
-              </div>
-              <div>
-                <h3 className="text-xl font-semibold text-gray-800">{customer.name}</h3>
-                <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 text-gray-500 mt-1">
-                  <div className="flex items-center">
-                    <Phone size={16} className="mr-1" />
-                    <span>{customer.phone}</span>
-                  </div>
-                  <div className="flex items-center">
-                    <Calendar size={16} className="mr-1" />
-                    <span className="text-sm">Desde: {new Date(customer.createdAt).toLocaleDateString()}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Información de Deuda y Contador */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-              <div className="grid grid-cols-2 sm:flex sm:gap-6 w-full sm:w-auto">
-                <div className="text-center">
-                  <p className="text-sm text-gray-500">Compras</p>
-                  <span className="text-xl font-bold text-blue-600">{contadorCompras(customer.id)}</span>
-                </div>
-                <div className="text-center">
-                  <p className="text-sm text-gray-500">Deuda Total</p>
-                  <span className="text-xl font-bold text-blue-600">{formatCurrency(totalDebt)}</span>
-                </div>
-              </div>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  pagarTodo(customer.id);
-                }}
-                className="w-full sm:w-auto bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 
-                         rounded-lg transition-colors duration-200 flex items-center justify-center gap-2"
-              >
-                <DollarSign size={20} />
-                <span>Pagar Todo</span>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Panel Expandible con las Compras */}
-{isExpanded && (
-  <div className="mt-4 bg-gray-50 rounded-lg p-4 sm:p-6 transition-all duration-300">
-    <div className="grid grid-cols-1 gap-4">
-      {purchases.map((purchase) => (
-        <div
-          key={purchase.id}
-          className="bg-white rounded-xl p-6 shadow-sm hover:shadow-md transition-all duration-200"
-        >
-          {/* Encabezado de la compra */}
-          <div className="flex flex-col lg:flex-row justify-between items-start gap-6">
-            {/* Información principal */}
-            <div className="flex-1 space-y-4">
-              <div className="flex items-center justify-between">
-                <h4 className="text-lg sm:text-xl font-semibold text-gray-800">{purchase.name}</h4>
-                <span className={`px-4 py-1.5 rounded-full text-sm font-medium 
-                  ${purchase.status === "pagado" 
-                    ? "bg-green-100 text-green-800" 
-                    : "bg-yellow-100 text-yellow-800"}`}
-                >
-                  {purchase.status === "pagado" ? "✓ Pagado" : "⏳ Pendiente"}
-                </span>
-              </div>
-
-              {/* Grid de información */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
-                  <Calendar size={16} className="text-blue-500 shrink-0" />
-                  <div>
-                    <p className="text-xs text-gray-500">Fecha</p>
-                    <p className="text-sm font-medium">{new Date(purchase.orderdate).toLocaleDateString()}</p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
-                  <DollarSign size={16} className="text-green-500 shrink-0" />
-                  <div>
-                    <p className="text-xs text-gray-500">Precio total</p>
-                    <p className="text-sm font-semibold text-green-600">{formatCurrency(purchase.price)}</p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
-                  <DollarSign size={16} className="text-red-500 shrink-0" />
-                  <div>
-                    <p className="text-xs text-gray-500">Deuda pendiente</p>
-                    <p className="text-sm font-semibold text-red-600">{formatCurrency(purchase.debt)}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Barra separadora */}
-          <div className="h-px bg-gray-100 my-6"></div>
-
-          {/* Botones de acción */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-            <Tooltip content="Ver detalles">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleViewDetails(purchase);
-                }}
-                className="inline-flex items-center justify-center gap-1.5 px-3 py-2 
-                         bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg transition-colors"
-              >
-                <Package size={16} className="shrink-0" />
-                <span className="text-xs font-medium">Ver</span>
-              </button>
-            </Tooltip>
-
-            <Tooltip content="Descargar factura">
-              <InvoiceGenerator purchase={purchase} />
-            </Tooltip>
-
-            <Tooltip content="Historial de abonos">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setSelectedPurchaseId(purchase.id);
-                  setIsAbonosModalOpen(true);
-                }}
-                className="inline-flex items-center justify-center gap-1.5 px-3 py-2 
-                         bg-purple-50 hover:bg-purple-100 text-purple-600 rounded-lg transition-colors"
-              >
-                <DollarSign size={16} className="shrink-0" />
-                <span className="text-xs font-medium">Historial</span>
-              </button>
-            </Tooltip>
-
-            <Tooltip content="Nuevo abono">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  openAbonoModal(purchase.id);
-                }}
-                className="inline-flex items-center justify-center gap-1.5 px-3 py-2 
-                         bg-green-50 hover:bg-green-100 text-green-600 rounded-lg transition-colors"
-              >
-                <Plus size={16} className="shrink-0" />
-                <span className="text-xs font-medium">Abonar</span>
-              </button>
-            </Tooltip>
-
-            <Tooltip content="Modificar compra">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setPurchaseToEdit(purchase);
-                  setIsEditModalOpen(true);
-                }}
-                className="inline-flex items-center justify-center gap-1.5 px-3 py-2 
-                         bg-amber-50 hover:bg-amber-100 text-amber-600 rounded-lg transition-colors"
-              >
-                <Edit size={16} className="shrink-0" />
-                <span className="text-xs font-medium">Editar</span>
-              </button>
-            </Tooltip>
-
-            <Tooltip content="Eliminar compra">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setPurchaseToDelete(purchase.id);
-                  setIsDeleteModalOpen(true);
-                }}
-                className="inline-flex items-center justify-center gap-1.5 px-3 py-2 
-                         bg-red-50 hover:bg-red-100 text-red-600 rounded-lg transition-colors"
-              >
-                <Trash size={16} className="shrink-0" />
-                <span className="text-xs font-medium">Borrar</span>
-              </button>
-            </Tooltip>
-          </div>
-        </div>
-      ))}
-    </div>
-  </div>
-)}
-      </div>
-    );
-  })}
-</div>
+            );
+          })}
         </div>
       </div>
 
+      {/* Modals */}
       {selectedPurchase && (
         <Modal 
           backdrop="blur" 
@@ -551,20 +272,17 @@ const [expandedCustomerId, setExpandedCustomerId] = useState<number | null>(null
                 <ModalHeader className="flex flex-col gap-1">Detalles de la Compra</ModalHeader>
                 <ModalBody>
                   <div className="flex items-center space-x-2 text-gray-600 mb-2">
-                    <Package size={20} />
+                    <ShoppingBag size={20} />
                     <p><strong>Nombre:</strong> {selectedPurchase.name}</p>
                   </div>
                   <div className="flex items-center space-x-2 text-gray-600 mb-2">
-                    <DollarSign size={20} />
-                    <p><strong>Precio:</strong> {formatCurrency(selectedPurchase.price)}</p>
+                    <span><strong>Precio:</strong> {formatCurrency(selectedPurchase.price)}</span>
                   </div>
                   <div className="flex items-center space-x-2 text-gray-600 mb-2">
-                    <ShoppingBag size={20} />
-                    <p><strong>Estado:</strong> {selectedPurchase.status}</p>
+                    <span><strong>Estado:</strong> {selectedPurchase.status}</span>
                   </div>
                   <div className="flex items-center space-x-2 text-gray-600 mb-2">
-                    <Calendar size={20} />
-                    <p><strong>Fecha de Creación:</strong> {new Date(selectedPurchase.orderdate).toLocaleString().split(",")[0]}</p>
+                    <span><strong>Fecha de Creación:</strong> {new Date(selectedPurchase.orderdate).toLocaleDateString()}</span>
                   </div>
                   <h3 className="text-lg font-semibold mt-4">Productos</h3>
                   <div className="overflow-x-auto">
@@ -622,29 +340,31 @@ const [expandedCustomerId, setExpandedCustomerId] = useState<number | null>(null
           onUpdate={handleUpdatePurchase}
         />
       )}
+
       {selectedPurchaseId !== null && (
         <VerAbonos
           isOpen={isAbonosModalOpen}
           onClose={() => {
             setIsAbonosModalOpen(false);
-            updatePurchaseData(); // Actualizar datos después de cerrar el modal
+            updatePurchaseData();
           }}
           purchaseId={selectedPurchaseId}
         />
-
       )}
+
       {selectedAbonoId !== null && (
         <EditarAbono
           isOpen={isEditAbonoModalOpen}
           onClose={() => {
             setIsEditAbonoModalOpen(false);
-            updatePurchaseData(); // Actualizar datos después de editar
+            updatePurchaseData();
           }}
           abonoId={selectedAbonoId}
           purchaseId={selectedPurchaseId || 0}
-          currentAmount={selectedAbonoAmount}
+          currentAmount={0}
+          currentDate={new Date().toISOString()}
           onUpdate={() => {
-            updatePurchaseData(); // Actualizar datos después de actualizar
+            updatePurchaseData();
           }}
         />
       )}
@@ -654,24 +374,20 @@ const [expandedCustomerId, setExpandedCustomerId] = useState<number | null>(null
           isOpen={isAbonoModalOpen}
           onClose={() => {
             setIsAbonoModalOpen(false);
-            setPaymentOperationCompleted(true); // Set flag when modal closes
+            handleAddAbono();
           }}
           onAdd={handleAddAbono}
           purchaseId={selectedPurchaseId}
         />
       )}
-
     </div>
   );
 };
 
 const customStyles = `
   @layer utilities {
-    .glass-morphism {
-      @apply bg-white/90 backdrop-blur-lg border-b border-gray-100 shadow-sm;
-    }
+    /* Existing styles remain */
     
-    /* Mobile-first responsive styles */
     @media (max-width: 640px) {
       .container {
         @apply px-4;
@@ -685,6 +401,28 @@ const customStyles = `
         @apply overflow-x-auto -mx-4 sm:mx-0;
       }
     }
+    
+    /* Animations for stats */
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    
+    .stat-card {
+      animation: slideIn 0.5s ease-out;
+      animation-fill-mode: both;
+    }
+    
+    .stat-card:nth-child(1) { animation-delay: 0.1s; }
+    .stat-card:nth-child(2) { animation-delay: 0.2s; }
+    .stat-card:nth-child(3) { animation-delay: 0.3s; }
+    .stat-card:nth-child(4) { animation-delay: 0.4s; }
   }
 `;
 

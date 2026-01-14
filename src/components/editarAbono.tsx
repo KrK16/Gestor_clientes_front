@@ -1,6 +1,7 @@
 import React, { useState, useEffect, MouseEvent } from 'react';
 import { DollarSign, Calendar, X, AlertCircle } from 'lucide-react';
 import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter } from "@heroui/modal";
+import { createApiUrl } from "@/config/api";
 
 interface EditarAbonoProps {
   isOpen: boolean;
@@ -89,7 +90,7 @@ const EditarAbono: React.FC<EditarAbonoProps> = ({
     setError(null);
 
     try {
-      const response = await fetch(`http://26.241.225.40:3000/abonos/${abonoId}`, {
+      const response = await fetch(createApiUrl('/abonos', abonoId.toString()), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter } from "@heroui/modal";
 import { Button } from "@heroui/button";
 import { Plus, Trash2, User, UserPlus } from "lucide-react";
+import { createApiUrl } from "@/config/api";
 
 interface AgregarCompraProps {
   isOpen: boolean;
@@ -33,7 +34,7 @@ const AgregarCompra: React.FC<AgregarCompraProps> = ({ isOpen, onClose, onAdd })
   useEffect(() => {
     const fetchClientes = async () => {
       try {
-        const response = await fetch("http://26.241.225.40:3000/clientes");
+        const response = await fetch(createApiUrl('/clientes'));
         const data: Cliente[] = await response.json();
         setClientes(data);
       } catch (error) {
@@ -87,7 +88,7 @@ const AgregarCompra: React.FC<AgregarCompraProps> = ({ isOpen, onClose, onAdd })
 
   const handleSubmit = async () => {
     try {
-      const url = isNewClient ? "http://26.241.225.40:3000/compras/compraNCliente" : "http://26.241.225.40:3000/compras";
+      const url = isNewClient ? createApiUrl('/compras/compraNCliente') : createApiUrl('/compras');
 
 
       const body = isNewClient

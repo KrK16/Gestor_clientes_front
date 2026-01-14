@@ -8,6 +8,7 @@ import {
 } from "@heroui/modal";
 import { Button } from "@heroui/button";
 import {Trash2, Plus, Package, User, ShoppingBag, Calendar } from "lucide-react";
+import { createApiUrl } from "@/config/api";
 
 // Interfaces para los props y tipos de datos
 interface EditarCompraProps {
@@ -93,7 +94,7 @@ const EditarCompra: React.FC<EditarCompraProps> = ({
   // Función para cargar clientes
   const fetchClientes = async () => {
     try {
-      const response = await fetch("http://26.241.225.40:3000/clientes");
+      const response = await fetch(createApiUrl('/clientes'));
       const data: Cliente[] = await response.json();
       setClientes(data);
     } catch (error) {
@@ -155,7 +156,7 @@ const EditarCompra: React.FC<EditarCompraProps> = ({
       );
 
       const response = await fetch(
-        `http://26.241.225.40:3000/compras/${purchase.id}`,
+        createApiUrl('/compras', purchase.id.toString()),
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -184,7 +185,7 @@ const EditarCompra: React.FC<EditarCompraProps> = ({
   };
 
   const eliminarProducto = async (id:number) => {
-    await fetch(`http://26.241.225.40:3000/compras/producto/${id}`, {
+    await fetch(createApiUrl('/compras/producto', id.toString()), {
       method: "DELETE",
       headers  : { "Content-Type": "application/json" },
     });

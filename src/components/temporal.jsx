@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { User, ShoppingBag, Phone, Calendar, DollarSign, Package, Search, Plus, Edit, Trash } from "lucide-react";
 import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter } from "@heroui/modal";
+import { Tooltip } from "@heroui/tooltip";
 import { Button } from "@heroui/button";
+import { createApiUrl } from "@/config/api";
 import EliminarCompra from "@/components/eliminarCompra";
 import AgregarCompra from "@/components/agregarCompra";
 import EditarCompra from "@/components/editarCompra";
@@ -52,7 +54,7 @@ const Compritas: React.FC = () => {
   useEffect(() => {
     const fetchPurchases = async () => {
       try {
-        const response = await fetch("http://localhost:3000/compras");
+        const response = await fetch(createApiUrl('/compras'));
         const data: Purchase[] = await response.json();
         setPurchases(data);
         setFilteredPurchases(data);
@@ -113,7 +115,7 @@ const Compritas: React.FC = () => {
   };
 
   const pagarTodo = async (id: number) => {
-    const response = await fetch (`http://localhost:3000/abonos/abonoTotal/${id}`, {
+    const response = await fetch (createApiUrl('/abonos/abonoTotal', id.toString()), {
       method: "GET",
       headers  : { "Content-Type": "application/json" },
     });

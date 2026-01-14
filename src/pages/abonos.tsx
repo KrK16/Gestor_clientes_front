@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { DollarSign, Calendar, Package, ArrowDown, User } from "lucide-react";
+import { createApiUrl } from "@/config/api";
 
 interface Customer {
   id: number;
@@ -45,7 +46,7 @@ const Abonos: React.FC = () => {
     const fetchPayments = async () => {
       setIsLoading(true);
       try {
-        const response = await fetch("http://26.241.225.40:3000/abonos/abonosagrupados");
+        const response = await fetch(createApiUrl('/abonos/abonosagrupados'));
         if (!response.ok) {
           throw new Error('Error al cargar los abonos');
         }

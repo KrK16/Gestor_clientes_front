@@ -3,6 +3,7 @@ import { Button } from "@heroui/button";
 import { Card } from "@heroui/card";
 import { Modal } from "@heroui/modal";
 import { Input } from "@heroui/input";
+import { createApiUrl } from "@/config/api";
 
 interface Cliente {
   id: number;
@@ -22,7 +23,7 @@ const SeleccionarCliente: React.FC = () => {
   useEffect(() => {
     const fetchClientes = async () => {
       try {
-        const response = await fetch("http://26.241.225.40:3000/clientes");
+        const response = await fetch(createApiUrl('/clientes'));
         const data: Cliente[] = await response.json();
         setClientes(data);
         setFilteredClientes(data);
@@ -51,7 +52,7 @@ const SeleccionarCliente: React.FC = () => {
     if (selectedId === null) return;
     try {
       const response = await fetch(
-        `http://26.241.225.40:3000/clientes/${selectedId}`
+        createApiUrl('/clientes', selectedId.toString())
       );
       const data: Cliente = await response.json();
       setClienteInfo(data);
