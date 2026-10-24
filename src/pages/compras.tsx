@@ -1,27 +1,36 @@
-import React, { useState } from "react";
-import { ShoppingBag, Plus, User, Calendar, DollarSign } from "lucide-react";
-import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter } from "@heroui/modal";
+import React, { useState, useEffect } from "react";
+import { ShoppingBag, Plus } from "lucide-react";
+import {
+  Modal,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
+} from "@heroui/modal";
 import { Button } from "@heroui/button";
+
 import { Purchase } from "@/types/purchases";
 import { usePurchases } from "@/hooks/usePurchases";
 import { useFilters } from "@/hooks/useFilters";
-
 import EliminarCompra from "@/components/eliminarCompra";
 import AgregarCompra from "@/components/agregarCompra";
 import EditarCompra from "@/components/editarCompra";
 import VerAbonos from "@/components/abonosdecompra";
 import AgregarAbono from "@/components/agregarAbono";
 import EditarAbono from "@/components/editarAbono";
-
 import CustomerCard from "@/components/purchases/CustomerCard";
 import PurchaseList from "@/components/purchases/PurchaseList";
 import FilterBar from "@/components/purchases/FilterBar";
 
 const Compritas: React.FC = () => {
-  const [expandedCustomerId, setExpandedCustomerId] = useState<number | null>(null);
-  const [selectedPurchase, setSelectedPurchase] = useState<Purchase | null>(null);
+  const [expandedCustomerId, setExpandedCustomerId] = useState<number | null>(
+    null,
+  );
+  const [selectedPurchase, setSelectedPurchase] = useState<Purchase | null>(
+    null,
+  );
   const { isOpen, onOpen, onClose } = useDisclosure();
-  
+
   // Modal states
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [purchaseToDelete, setPurchaseToDelete] = useState<number | null>(null);
@@ -29,7 +38,9 @@ const Compritas: React.FC = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [purchaseToEdit, setPurchaseToEdit] = useState<Purchase | null>(null);
   const [isAbonosModalOpen, setIsAbonosModalOpen] = useState(false);
-  const [selectedPurchaseId, setSelectedPurchaseId] = useState<number | null>(null);
+  const [selectedPurchaseId, setSelectedPurchaseId] = useState<number | null>(
+    null,
+  );
   const [isAbonoModalOpen, setIsAbonoModalOpen] = useState(false);
   const [isEditAbonoModalOpen, setIsEditAbonoModalOpen] = useState(false);
   const [selectedAbonoId] = useState<number | null>(null);
@@ -45,6 +56,7 @@ const Compritas: React.FC = () => {
     handleUpdatePurchase,
     handlePayAll,
     refreshPurchases,
+    applyExternalFilter,
     formatCurrency,
     getCustomerPurchaseCount,
     getCustomerTotalDebt,
@@ -52,10 +64,21 @@ const Compritas: React.FC = () => {
 
   const {
     filters,
+    filteredPurchases: searchFiltered,
     updateFilter,
+    clearFilters,
     getUniquePurchaseNames,
     getUniqueStatuses,
   } = useFilters(purchases);
+
+  useEffect(() => {
+    applyExternalFilter(searchFiltered);
+  }, [searchFiltered, applyExternalFilter]);
+
+  const handleAddAndReveal = (purchase: Purchase) => {
+    handleAddPurchase(purchase);
+    clearFilters();
+  };
 
   // Event handlers
   const handleViewDetails = (purchase: Purchase) => {
@@ -110,7 +133,7 @@ const Compritas: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100/50 pb-10">
       <style>{customStyles}</style>
-      
+
       {/* Enhanced Header */}
       <header className="sticky top-0 z-50 backdrop-blur-xl bg-white/80 border-b border-gray-200/50 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -118,9 +141,6 @@ const Compritas: React.FC = () => {
             {/* Left Section - Title and Stats */}
             <div className="flex items-center space-x-6">
               <div className="flex items-center space-x-3">
-                <div className="flex items-center justify-center w-12 h-12 bg-gradient-to-br from-blue-600 to-blue-500 rounded-xl shadow-lg">
-                  <Plus className="h-6 w-6 text-white" />
-                </div>
                 <div>
                   <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
                     Gestión de Clientes
@@ -139,76 +159,13 @@ const Compritas: React.FC = () => {
                          hover:shadow-blue-500/40 border-none px-6 py-3 rounded-xl font-semibold
                          transition-all duration-300 hover:scale-[1.03] hover:from-blue-700 hover:to-blue-600
                          active:scale-[0.98]"
-                onPress={() => setIsAddModalOpen(true)}
-                startContent={<Plus className="h-5 w-5" />}
                 size="lg"
+                startContent={<Plus className="h-5 w-5" />}
+                onPress={() => setIsAddModalOpen(true)}
               >
                 <span className="hidden sm:inline">Nueva Compra</span>
                 <span className="sm:hidden">Nueva</span>
               </Button>
-            </div>
-          </div>
-
-          {/* Quick Stats Bar */}
-          <div className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="stat-card bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-4 border border-blue-200 hover:shadow-md transition-all duration-300 hover:scale-[1.02] cursor-pointer">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium text-blue-600 uppercase tracking-wide">Clientes</p>
-                  <p className="text-xl font-bold text-blue-900 mt-1">
-                    {Object.keys(groupedPurchases).length}
-                  </p>
-                </div>
-                <div className="w-8 h-8 bg-blue-200 rounded-full flex items-center justify-center">
-                  <User className="h-4 w-4 text-blue-600" />
-                </div>
-              </div>
-            </div>
-
-            <div className="stat-card bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-4 border border-green-200 hover:shadow-md transition-all duration-300 hover:scale-[1.02] cursor-pointer">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium text-green-600 uppercase tracking-wide">Compras</p>
-                  <p className="text-xl font-bold text-green-900 mt-1">
-                    {purchases.length}
-                  </p>
-                </div>
-                <div className="w-8 h-8 bg-green-200 rounded-full flex items-center justify-center">
-                  <ShoppingBag className="h-4 w-4 text-green-600" />
-                </div>
-              </div>
-            </div>
-
-            <div className="stat-card bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-lg p-4 border border-yellow-200 hover:shadow-md transition-all duration-300 hover:scale-[1.02] cursor-pointer">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium text-yellow-600 uppercase tracking-wide">Pendientes</p>
-                  <p className="text-xl font-bold text-yellow-900 mt-1">
-                    {purchases.filter(p => p.status === 'pendiente').length}
-                  </p>
-                </div>
-                <div className="w-8 h-8 bg-yellow-200 rounded-full flex items-center justify-center">
-                  <Calendar className="h-4 w-4 text-yellow-600" />
-                </div>
-              </div>
-            </div>
-
-            <div className="stat-card bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-4 border border-purple-200 hover:shadow-md transition-all duration-300 hover:scale-[1.02] cursor-pointer">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium text-purple-600 uppercase tracking-wide">Deuda Total</p>
-                  <p className="text-xl font-bold text-purple-900 mt-1">
-                    {formatCurrency(
-                      purchases
-                        .filter(p => p.status === 'pendiente')
-                        .reduce((sum, p) => sum + (p.debt || 0), 0)
-                    )}
-                  </p>
-                </div>
-                <div className="w-8 h-8 bg-purple-200 rounded-full flex items-center justify-center">
-                  <DollarSign className="h-4 w-4 text-purple-600" />
-                </div>
-              </div>
             </div>
           </div>
         </div>
@@ -220,36 +177,47 @@ const Compritas: React.FC = () => {
           searchTerm={filters.searchTerm}
           selectedPurchaseName={filters.selectedPurchaseName}
           selectedStatus={filters.selectedStatus}
-          onSearchChange={(value) => updateFilter('searchTerm', value)}
-          onPurchaseNameChange={(value) => updateFilter('selectedPurchaseName', value)}
-          onStatusChange={(value) => updateFilter('selectedStatus', value)}
           uniquePurchaseNames={getUniquePurchaseNames()}
           uniqueStatuses={getUniqueStatuses()}
+          onPurchaseNameChange={(value) =>
+            updateFilter("selectedPurchaseName", value)
+          }
+          onSearchChange={(value) => updateFilter("searchTerm", value)}
+          onStatusChange={(value) => updateFilter("selectedStatus", value)}
         />
 
         {/* Customer Cards */}
         <div className="max-w-7xl mx-auto px-6">
           {Object.values(groupedPurchases).map((customerWithPurchases) => {
-            const isExpanded = expandedCustomerId === customerWithPurchases.customer.id;
-            const totalDebt = getCustomerTotalDebt(customerWithPurchases.customer.id);
-            const purchaseCount = getCustomerPurchaseCount(customerWithPurchases.customer.id);
+            const isExpanded =
+              expandedCustomerId === customerWithPurchases.customer.id;
+            const totalDebt = getCustomerTotalDebt(
+              customerWithPurchases.customer.id,
+            );
+            const purchaseCount = getCustomerPurchaseCount(
+              customerWithPurchases.customer.id,
+            );
 
             return (
               <div key={customerWithPurchases.customer.id}>
                 <CustomerCard
                   customerWithPurchases={customerWithPurchases}
                   isExpanded={isExpanded}
-                  onToggle={() => setExpandedCustomerId(isExpanded ? null : customerWithPurchases.customer.id)}
-                  totalDebt={totalDebt}
                   purchaseCount={purchaseCount}
+                  totalDebt={totalDebt}
                   onPayAll={handlePayAll}
+                  onToggle={() =>
+                    setExpandedCustomerId(
+                      isExpanded ? null : customerWithPurchases.customer.id,
+                    )
+                  }
                 />
 
                 {isExpanded && (
                   <PurchaseList
-                    purchases={customerWithPurchases.purchases}
-                    formatCurrency={formatCurrency}
                     actions={purchaseActions}
+                    formatCurrency={formatCurrency}
+                    purchases={customerWithPurchases.purchases}
                   />
                 )}
               </div>
@@ -260,29 +228,49 @@ const Compritas: React.FC = () => {
 
       {/* Modals */}
       {selectedPurchase && (
-        <Modal 
-          backdrop="blur" 
-          isOpen={isOpen} 
-          onClose={onClose}
+        <Modal
+          backdrop="blur"
           className="w-[95vw] max-w-[600px] mx-auto"
+          isOpen={isOpen}
+          onClose={onClose}
         >
           <ModalContent>
             {(onClose) => (
               <>
-                <ModalHeader className="flex flex-col gap-1">Detalles de la Compra</ModalHeader>
+                <ModalHeader className="flex flex-col gap-1">
+                  Detalles de la Compra
+                </ModalHeader>
                 <ModalBody>
                   <div className="flex items-center space-x-2 text-gray-600 mb-2">
                     <ShoppingBag size={20} />
-                    <p><strong>Nombre:</strong> {selectedPurchase.name}</p>
+                    <p>
+                      <strong>Nombre:</strong> {selectedPurchase.name}
+                    </p>
                   </div>
                   <div className="flex items-center space-x-2 text-gray-600 mb-2">
-                    <span><strong>Precio:</strong> {formatCurrency(selectedPurchase.price)}</span>
+                    <span>
+                      <strong>Precio:</strong>{" "}
+                      {formatCurrency(selectedPurchase.price)}
+                    </span>
                   </div>
                   <div className="flex items-center space-x-2 text-gray-600 mb-2">
-                    <span><strong>Estado:</strong> {selectedPurchase.status}</span>
+                    <span>
+                      <strong>Estado:</strong> {selectedPurchase.status}
+                    </span>
                   </div>
                   <div className="flex items-center space-x-2 text-gray-600 mb-2">
-                    <span><strong>Fecha de Creación:</strong> {new Date(selectedPurchase.orderdate).toLocaleDateString()}</span>
+                    <span>
+                      <strong>Fecha de Creación:</strong>{" "}
+                      {new Date(
+                        selectedPurchase.orderdate,
+                      ).toLocaleDateString()}
+                    </span>
+                  </div>
+                  <div className="flex items-center space-x-2 text-gray-600 mb-2">
+                    <span>
+                      <strong>Fecha de Pago:</strong>{" "}
+                      {new Date(selectedPurchase.payday).toLocaleDateString()}
+                    </span>
                   </div>
                   <h3 className="text-lg font-semibold mt-4">Productos</h3>
                   <div className="overflow-x-auto">
@@ -299,7 +287,9 @@ const Compritas: React.FC = () => {
                           <tr key={product.id} className="border-t">
                             <td className="py-2 px-4">{product.name}</td>
                             <td className="py-2 px-4">{product.quantity}</td>
-                            <td className="py-2 px-4">{formatCurrency(product.price)}</td>
+                            <td className="py-2 px-4">
+                              {formatCurrency(product.price)}
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -320,23 +310,23 @@ const Compritas: React.FC = () => {
       {purchaseToDelete !== null && (
         <EliminarCompra
           isOpen={isDeleteModalOpen}
-          onClose={() => setIsDeleteModalOpen(false)}
           purchaseId={purchaseToDelete}
+          onClose={() => setIsDeleteModalOpen(false)}
           onDelete={handleDeletePurchase}
         />
       )}
 
       <AgregarCompra
         isOpen={isAddModalOpen}
+        onAdd={handleAddAndReveal}
         onClose={() => setIsAddModalOpen(false)}
-        onAdd={handleAddPurchase}
       />
 
       {purchaseToEdit && (
         <EditarCompra
           isOpen={isEditModalOpen}
-          onClose={() => setIsEditModalOpen(false)}
           purchase={purchaseToEdit}
+          onClose={() => setIsEditModalOpen(false)}
           onUpdate={handleUpdatePurchase}
         />
       )}
@@ -344,25 +334,25 @@ const Compritas: React.FC = () => {
       {selectedPurchaseId !== null && (
         <VerAbonos
           isOpen={isAbonosModalOpen}
+          purchaseId={selectedPurchaseId}
           onClose={() => {
             setIsAbonosModalOpen(false);
             updatePurchaseData();
           }}
-          purchaseId={selectedPurchaseId}
         />
       )}
 
       {selectedAbonoId !== null && (
         <EditarAbono
+          abonoId={selectedAbonoId}
+          currentAmount={0}
+          currentDate={new Date().toISOString()}
           isOpen={isEditAbonoModalOpen}
+          purchaseId={selectedPurchaseId || 0}
           onClose={() => {
             setIsEditAbonoModalOpen(false);
             updatePurchaseData();
           }}
-          abonoId={selectedAbonoId}
-          purchaseId={selectedPurchaseId || 0}
-          currentAmount={0}
-          currentDate={new Date().toISOString()}
           onUpdate={() => {
             updatePurchaseData();
           }}
@@ -372,12 +362,12 @@ const Compritas: React.FC = () => {
       {selectedPurchaseId !== null && (
         <AgregarAbono
           isOpen={isAbonoModalOpen}
+          purchaseId={selectedPurchaseId}
+          onAdd={handleAddAbono}
           onClose={() => {
             setIsAbonoModalOpen(false);
             handleAddAbono();
           }}
-          onAdd={handleAddAbono}
-          purchaseId={selectedPurchaseId}
         />
       )}
     </div>

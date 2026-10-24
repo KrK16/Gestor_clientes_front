@@ -1,4 +1,5 @@
 import { Route, Routes } from "react-router-dom";
+
 import Compritas from "./pages/compras";
 
 function App() {

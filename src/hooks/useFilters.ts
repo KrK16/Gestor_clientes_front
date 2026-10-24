@@ -1,15 +1,17 @@
-import { useState, useEffect } from 'react';
-import { Purchase, FilterOptions } from '@/types/purchases';
+import { useState, useEffect } from "react";
+
+import { Purchase, FilterOptions } from "@/types/purchases";
 
 export const useFilters = (purchases: Purchase[]) => {
   const [filters, setFilters] = useState<FilterOptions>({
-    searchTerm: '',
-    selectedPurchaseName: '',
-    selectedStatus: '',
+    searchTerm: "",
+    selectedPurchaseName: "",
+    selectedStatus: "",
     selectedOrderdate: null,
   });
 
-  const [filteredPurchases, setFilteredPurchases] = useState<Purchase[]>(purchases);
+  const [filteredPurchases, setFilteredPurchases] =
+    useState<Purchase[]>(purchases);
 
   useEffect(() => {
     const filtered = purchases.filter((purchase) => {
@@ -17,30 +19,39 @@ export const useFilters = (purchases: Purchase[]) => {
       if (!purchase || !purchase.customer || !purchase.customer.name) {
         return false;
       }
-      
-      const matchesSearchTerm = purchase.customer.name.toLowerCase()
+
+      const matchesSearchTerm = purchase.customer.name
+        .toLowerCase()
         .includes(filters.searchTerm.toLowerCase());
-      
-      const matchesPurchaseName = filters.selectedPurchaseName 
-        ? purchase.name === filters.selectedPurchaseName 
-        : true;
-      
-      const matchesStatus = filters.selectedStatus 
-        ? purchase.status === filters.selectedStatus 
-        : true;
-      
-      const matchesOrderdate = filters.selectedOrderdate 
-        ? purchase.orderdate === filters.selectedOrderdate 
+
+      const matchesPurchaseName = filters.selectedPurchaseName
+        ? purchase.name === filters.selectedPurchaseName
         : true;
 
-      return matchesSearchTerm && matchesPurchaseName && matchesStatus && matchesOrderdate;
+      const matchesStatus = filters.selectedStatus
+        ? purchase.status === filters.selectedStatus
+        : true;
+
+      const matchesOrderdate = filters.selectedOrderdate
+        ? purchase.orderdate === filters.selectedOrderdate
+        : true;
+
+      return (
+        matchesSearchTerm &&
+        matchesPurchaseName &&
+        matchesStatus &&
+        matchesOrderdate
+      );
     });
 
     setFilteredPurchases(filtered);
   }, [purchases, filters]);
 
-  const updateFilter = (key: keyof FilterOptions, value: string | Date | null) => {
-    setFilters(prev => ({
+  const updateFilter = (
+    key: keyof FilterOptions,
+    value: string | Date | null,
+  ) => {
+    setFilters((prev) => ({
       ...prev,
       [key]: value,
     }));
@@ -48,27 +59,31 @@ export const useFilters = (purchases: Purchase[]) => {
 
   const clearFilters = () => {
     setFilters({
-      searchTerm: '',
-      selectedPurchaseName: '',
-      selectedStatus: '',
+      searchTerm: "",
+      selectedPurchaseName: "",
+      selectedStatus: "",
       selectedOrderdate: null,
     });
   };
 
   const getUniquePurchaseNames = () => {
-    return Array.from(new Set(
-      purchases
-        .filter(purchase => purchase && purchase.name)
-        .map(purchase => purchase.name)
-    ));
+    return Array.from(
+      new Set(
+        purchases
+          .filter((purchase) => purchase && purchase.name)
+          .map((purchase) => purchase.name),
+      ),
+    );
   };
 
   const getUniqueStatuses = () => {
-    return Array.from(new Set(
-      purchases
-        .filter(purchase => purchase && purchase.status)
-        .map(purchase => purchase.status)
-    ));
+    return Array.from(
+      new Set(
+        purchases
+          .filter((purchase) => purchase && purchase.status)
+          .map((purchase) => purchase.status),
+      ),
+    );
   };
 
   return {

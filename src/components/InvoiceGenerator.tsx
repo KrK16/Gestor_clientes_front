@@ -1,16 +1,10 @@
-import React, { useRef } from "react";
-import jsPDF from "jspdf";
-import html2canvas from "html2canvas";
-import { FileText, CreditCard, DollarSign, Calendar } from "lucide-react";
+import React, { useRef, useState } from "react";
+import { FileText } from "lucide-react";
+import { Modal, ModalContent, ModalHeader, ModalBody } from "@heroui/modal";
+import { Button } from "@heroui/button";
 
-// Actualizar la interfaz Payment
-interface Payment {
-  id: number;
-  amount: number;
-  createdAt: string;
-  purchaseId: number;
-  purchase?: Purchase; // Opcional ya que no lo necesitamos para mostrar
-}
+import { createApiUrl } from "@/config/api";
+import { downloadJpgFromElement } from "@/utils/exportJpg";
 
 interface Product {
   id: number;
@@ -40,308 +34,511 @@ interface Purchase {
   name: string;
   products: Product[];
   customer: Customer;
-  payments?: Payment[]; // Abonos realizados
 }
 
 interface InvoiceGeneratorProps {
   purchase: Purchase;
 }
 
-const formatDate = (date: Date | string) => {
-  const d = new Date(date);
-  return `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear()}`;
+interface Abono {
+  id: number;
+  amount: number;
+  createdAt: string;
+}
+
+interface FacturaRow {
+  concepto: string;
+  cantidad: string;
+  precio: string;
+}
+
+const MIN_FILAS = 12;
+
+// Datos de prueba del propietario y cuentas de pago.
+// Reemplazar por datos reales cuando se entreguen.
+const DATOS_PRUEBA = {
+  emisorNombre: "Mi Negocio S.A.S.",
+  emisorDireccion: "Calle 123 #45-67, Bogotá",
+  emisorCelular: "300 123 4567",
+  bcCuenta: "12345678901",
+  bcTitular: "Mi Negocio S.A.S.",
+  nqCelular: "300 123 4567",
+  nqTitular: "Mi Negocio S.A.S.",
 };
 
 const formatCurrency = (value: number) => {
-  return new Intl.NumberFormat('es-CO', { 
-    style: 'currency', 
-    currency: 'COP',
+  return new Intl.NumberFormat("es-CO", {
+    style: "currency",
+    currency: "COP",
     minimumFractionDigits: 0,
-    maximumFractionDigits: 0
-  }).format(value);
+    maximumFractionDigits: 0,
+  }).format(value || 0);
 };
 
-// Función para obtener el icono del método de pago
-const getPaymentMethodIcon = (method?: string) => {
-  switch (method?.toLowerCase()) {
-    case 'efectivo':
-      return <DollarSign size={16} className="text-green-600" />;
-    case 'tarjeta':
-      return <CreditCard size={16} className="text-blue-600" />;
-    default:
-      return <DollarSign size={16} className="text-gray-600" />;
-  }
+const todayISO = () => {
+  const h = new Date();
+
+  return `${h.getFullYear()}-${String(h.getMonth() + 1).padStart(2, "0")}-${String(h.getDate()).padStart(2, "0")}`;
 };
 
 const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ purchase }) => {
-  const invoiceRef = useRef<HTMLDivElement>(null);
+  const facturaRef = useRef<HTMLDivElement>(null);
+  const [isOpen, setIsOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [abonos, setAbonos] = useState<Abono[]>([]);
 
-  const generateInvoicePDF = async () => {
-    if (!invoiceRef.current) return;
+  React.useEffect(() => {
+    if (!isOpen) return;
+    fetch(createApiUrl("/abonos", `abonocompra/${purchase.id}`))
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data) => setAbonos(Array.isArray(data) ? data : []))
+      .catch(() => setAbonos([]));
+  }, [isOpen, purchase.id]);
 
-    // Cambiar temporalmente el estilo para la captura
-    const originalDisplay = invoiceRef.current.style.display;
-    invoiceRef.current.style.display = "block";
-    
+  const totalAbonado = abonos.reduce((s, a) => s + (a.amount || 0), 0);
+
+  const initialRows = (): FacturaRow[] => {
+    const base: FacturaRow[] = (purchase.products ?? []).map((p) => ({
+      concepto: p.name,
+      cantidad: String(p.quantity ?? 1),
+      precio: String(p.price ?? 0),
+    }));
+
+    while (base.length < MIN_FILAS)
+      base.push({ concepto: "", cantidad: "", precio: "" });
+
+    return base;
+  };
+
+  const [rows, setRows] = useState<FacturaRow[]>(initialRows);
+  const [emisor, setEmisor] = useState({
+    nombre: DATOS_PRUEBA.emisorNombre,
+    direccion: DATOS_PRUEBA.emisorDireccion,
+    celular: DATOS_PRUEBA.emisorCelular,
+  });
+  const [cliente, setCliente] = useState({
+    nombre: purchase.customer.name,
+    celular: purchase.customer.phone,
+  });
+  const [fecha, setFecha] = useState(todayISO());
+  const [pagos, setPagos] = useState({
+    bcCuenta: DATOS_PRUEBA.bcCuenta,
+    bcTitular: DATOS_PRUEBA.bcTitular,
+    nqCelular: DATOS_PRUEBA.nqCelular,
+    nqTitular: DATOS_PRUEBA.nqTitular,
+  });
+
+  const totalProductos = rows.reduce((sum, r) => {
+    const c = parseFloat(r.cantidad);
+    const p = parseFloat(r.precio);
+
+    return sum + (isNaN(c) || isNaN(p) ? 0 : c * p);
+  }, 0);
+  const total = totalProductos - totalAbonado;
+  const pagado = totalAbonado > 0 && total <= 0;
+
+  const updateRow = (index: number, field: keyof FacturaRow, value: string) => {
+    setRows((prev) =>
+      prev.map((r, i) => (i === index ? { ...r, [field]: value } : r)),
+    );
+  };
+
+  const formatFechaCorta = (iso: string) => {
+    const d = new Date(iso);
+
+    return `${d.getDate().toString().padStart(2, "0")}/${(d.getMonth() + 1).toString().padStart(2, "0")}/${d.getFullYear()}`;
+  };
+
+  const handleLimpiar = () => {
+    setEmisor({ nombre: "", direccion: "", celular: "" });
+    setCliente({ nombre: "", celular: "" });
+    setPagos({ bcCuenta: "", bcTitular: "", nqCelular: "", nqTitular: "" });
+    setRows(
+      Array.from({ length: MIN_FILAS }, () => ({
+        concepto: "",
+        cantidad: "",
+        precio: "",
+      })),
+    );
+  };
+
+  const handleGenerarJPG = async () => {
+    if (!facturaRef.current || isSaving) return;
+    setIsSaving(true);
     try {
-      // Configuración optimizada para PDF con tipos adecuados
-      const pdfOptions = {
-        orientation: 'portrait' as const,
-        unit: 'mm' as const,
-        format: 'a4',
-        compress: true
-      };
-      
-      const pdf = new jsPDF(pdfOptions);
-      
-      // Ajustar el tamaño del contenido antes de la captura
-      const originalWidth = invoiceRef.current.style.width;
-      // Fijar ancho exacto para A4 (aproximadamente 210mm)
-      invoiceRef.current.style.width = "210mm";
-      invoiceRef.current.style.maxWidth = "210mm";
-      
-      // Configuración optimizada para html2canvas
-      const canvasOptions = {
-        scale: 2, // Mayor calidad para captura
-        useCORS: true,
-        logging: false,
-        backgroundColor: '#ffffff',
-        allowTaint: false,
-        // Importante: evitar scroll para captura completa
-        windowWidth: invoiceRef.current.scrollWidth,
-        windowHeight: invoiceRef.current.scrollHeight
-      };
-      
-      const canvas = await html2canvas(invoiceRef.current, canvasOptions);
-      
-      // Usar calidad de imagen balanceada
-      const imgData = canvas.toDataURL("image/jpeg", 0.9);
-      
-      // Dimensiones A4 en mm
-      const pageWidth = 210;
-      const pageHeight = 297;
-      const margin = 10; // Márgenes razonables
-      
-      // Calcular dimensiones manteniendo proporción
-      const imgWidth = pageWidth - (margin * 2);
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      
-      // Agregar imagen al PDF con posicionamiento centrado
-      pdf.addImage(
-        imgData,
-        "JPEG",
-        margin,
-        margin,
-        imgWidth,
-        Math.min(imgHeight, pageHeight - (margin * 2)), // No exceder la altura de página
-        undefined,
-        'MEDIUM' // Calidad media para mejor balance
+      await downloadJpgFromElement(
+        facturaRef.current,
+        `Factura_${purchase.name}_${purchase.id}.jpg`,
       );
-
-      // Si el contenido es muy largo, ajustar para multi-página
-      if (imgHeight > pageHeight - (margin * 2)) {
-        // Agregar aviso de contenido continuado
-        pdf.setFontSize(9);
-        pdf.setTextColor(100, 100, 100);
-        pdf.text('Ver página siguiente para contenido adicional', pageWidth / 2, pageHeight - 5, { align: "center" });
-        
-        // Agregar segunda página para el resto del contenido
-        pdf.addPage();
-        
-        // Calcular la parte visible en primera página
-        const firstPageHeight = pageHeight - (margin * 2);
-        const remainingHeight = imgHeight - firstPageHeight;
-        
-        // Posicionar la segunda parte de la imagen
-        pdf.addImage(
-          imgData,
-          "JPEG",
-          margin,
-          margin - firstPageHeight,
-          imgWidth,
-          imgHeight,
-          undefined,
-          'MEDIUM'
-        );
-      }
-      
-      // Propiedades del PDF
-      pdf.setProperties({
-        title: `Factura ${purchase.name}`,
-        subject: `Factura No. ${purchase.id}`,
-        creator: 'Sistema de Facturación'
-      });
-      
-      pdf.save(`Factura_${purchase.name}_${purchase.id}.pdf`);
-      
-      // Restaurar estilo original
-      invoiceRef.current.style.width = originalWidth;
-    } catch (error) {
-      console.error("Error generando PDF:", error);
+      setIsOpen(false);
     } finally {
-      // Restaurar el estilo original
-      invoiceRef.current.style.display = originalDisplay;
+      setIsSaving(false);
     }
   };
 
-  // Calcular subtotal y totales
-  const subtotal = purchase.products.reduce((sum, product) => sum + (product.price * product.quantity), 0);
-  const total = purchase.price; // O usar subtotal + iva si prefieres calcularlo
-  
-  // Calcular total abonado
-  const totalPaid = purchase.payments?.reduce((sum, payment) => sum + payment.amount, 0) || 0;
+  const inputCls =
+    "font-inherit border-0 border-b border-dashed border-gray-300 bg-transparent px-1 py-0.5 w-full min-w-0 rounded-sm focus:outline-none focus:border-blue-500";
+
+  const autoGrowStyle = {
+    fieldSizing: "content",
+    overflowWrap: "anywhere",
+    wordBreak: "break-word",
+  } as React.CSSProperties;
+
+  const AutoInput = ({
+    label,
+    value,
+    onChange,
+    placeholder,
+    inputMode,
+    className = "",
+  }: {
+    label: string;
+    value: string;
+    onChange: (v: string) => void;
+    placeholder?: string;
+    inputMode?: "tel" | "numeric" | "text";
+    className?: string;
+  }) => (
+    <textarea
+      aria-label={label}
+      className={`${inputCls} ${className} resize-none overflow-hidden block`}
+      inputMode={inputMode}
+      placeholder={placeholder}
+      rows={1}
+      style={autoGrowStyle}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+    />
+  );
 
   return (
     <div>
       <button
-        onClick={generateInvoicePDF}
-        className="inline-flex items-center justify-center gap-1.5 px-3 py-2 
+        className="inline-flex items-center justify-center gap-1.5 px-3 py-2
                   bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg transition-colors
                   w-full sm:w-auto"
+        onClick={() => setIsOpen(true)}
       >
-        <FileText size={16} className="shrink-0" />
-        <span className="text-xs sm:text-sm font-medium truncate">Descargar Factura</span>
+        <FileText className="shrink-0" size={16} />
+        <span className="text-xs sm:text-sm font-medium truncate">
+          Descargar Factura
+        </span>
       </button>
 
-      {/* Hidden Invoice Template */}
-      <div 
-        ref={invoiceRef} 
-        style={{ 
-          display: "none",
-          width: "210mm", // Ancho fijo para A4
-          maxWidth: "210mm",
-          margin: "0 auto", // Centrar
-          boxSizing: "border-box" // Asegurar que padding está incluido en ancho
-        }} 
-        className="bg-white p-8 font-sans"
+      <Modal
+        isOpen={isOpen}
+        scrollBehavior="inside"
+        size="5xl"
+        onClose={() => setIsOpen(false)}
       >
-        {/* Header */}
-        <div className="flex justify-between items-start border-b border-gray-200 pb-6">
-          <div>
-            <h1 className="text-3xl font-bold text-blue-600">FACTURA</h1>
-            <p className="text-gray-500 mt-1">N° {purchase.id.toString().padStart(6, '0')}</p>
-          </div>
-          <div className="text-right">
-            <div className="bg-blue-600 text-white py-1 px-3 rounded-md text-sm font-medium inline-block mb-2">
-              {purchase.status === "pagado" ? "PAGADO" : "PENDIENTE"}
+        <ModalContent className="max-h-[92vh]">
+          <ModalHeader className="border-b border-gray-100 flex items-center gap-3">
+            <span>Factura N° {purchase.id.toString().padStart(6, "0")}</span>
+            <span
+              className={`text-xs font-bold px-2.5 py-1 rounded-full ${pagado ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}
+              data-testid="factura-estado"
+            >
+              {pagado ? "PAGADO" : "PENDIENTE"}
+            </span>
+          </ModalHeader>
+          <ModalBody className="p-4 sm:p-6">
+            <div
+              className="flex gap-2 justify-end flex-wrap mb-4"
+              data-html2canvas-ignore="true"
+            >
+              <Button variant="ghost" onPress={handleLimpiar}>
+                Limpiar
+              </Button>
+              <Button
+                color="primary"
+                disabled={isSaving}
+                onPress={handleGenerarJPG}
+              >
+                {isSaving ? "Generando..." : "Generar factura (JPG)"}
+              </Button>
             </div>
-            <p className="text-sm text-gray-600">Fecha de emisión: {formatDate(purchase.orderdate)}</p>
-            <p className="text-sm text-gray-600">Fecha de vencimiento: {formatDate(purchase.payday)}</p>
-          </div>
-        </div>
 
-        {/* Addresses */}
-        <div className="flex flex-wrap md:flex-nowrap justify-between mt-8 gap-8">
-          <div className="w-full md:w-1/2">
-            <h2 className="text-lg font-semibold text-gray-800 mb-3">DE:</h2>
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <p className="font-medium text-gray-800">Camisas Elegantes S.L.</p>
-              <p className="text-gray-600 mt-1">Calle Mayor 123</p>
-              <p className="text-gray-600">28001 Madrid, España</p>
-              <p className="text-gray-600 mt-1">NIT: 901.234.567-8</p>
-              <p className="text-gray-600">Tel: +34 91 123 45 67</p>
-              <p className="text-gray-600">info@camisaselegantes.com</p>
-            </div>
-          </div>
-          
-          <div className="w-full md:w-1/2">
-            <h2 className="text-lg font-semibold text-gray-800 mb-3">FACTURAR A:</h2>
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <p className="font-medium text-gray-800">{purchase.customer.name}</p>
-              <p className="text-gray-600 mt-1">Teléfono: {purchase.customer.phone}</p>
-              <p className="text-gray-600">Cliente desde: {formatDate(purchase.customer.createdAt)}</p>
-              <p className="text-gray-600 mt-1">Compra: {purchase.name}</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Products Table */}
-        <div className="mt-10">
-          <h2 className="text-lg font-semibold text-gray-800 mb-3">DETALLES DE LA COMPRA</h2>
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="bg-gray-100 text-left">
-                  <th className="py-3 px-4 text-gray-600 font-semibold">CANT.</th>
-                  <th className="py-3 px-4 text-gray-600 font-semibold">DESCRIPCIÓN</th>
-                  <th className="py-3 px-4 text-gray-600 font-semibold text-right">PRECIO UNIT.</th>
-                  <th className="py-3 px-4 text-gray-600 font-semibold text-right">IMPORTE</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {purchase.products.map((product) => (
-                  <tr key={product.id} className="hover:bg-gray-50">
-                    <td className="py-3 px-4 text-gray-800">{product.quantity}</td>
-                    <td className="py-3 px-4 text-gray-800">{product.name}</td>
-                    <td className="py-3 px-4 text-gray-800 text-right">{formatCurrency(product.price)}</td>
-                    <td className="py-3 px-4 text-gray-800 text-right">{formatCurrency(product.price * product.quantity)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Summary with Payment Details */}
-        <div className="mt-6 flex justify-end">
-          <div className="w-full sm:w-80 bg-gray-50 rounded-lg p-4">
-            <div className="flex justify-between mb-2">
-              <span className="text-gray-600">Total Factura:</span>
-              <span className="text-gray-800">{formatCurrency(total)}</span>
-            </div>
-            
-            {/* Payment Details */}
-            {purchase.payments && purchase.payments.length > 0 && (
-              <div className="border-t border-gray-200 pt-2 mb-2">
-                <p className="text-sm text-gray-600 mb-1">Abonos realizados:</p>
-                {purchase.payments.map((payment) => (
-                  <div key={payment.id} className="flex justify-between text-sm pl-2 py-1">
-                    <span className="text-gray-600">
-                      {formatDate(payment.createdAt)}:
-                    </span>
-                    <span className="text-green-600">-{formatCurrency(payment.amount)}</span>
+            <div className="overflow-x-auto -mx-1 px-1">
+              <div
+                ref={facturaRef}
+                className="bg-white text-gray-900 p-6 sm:p-9 mx-auto w-full min-w-[794px] max-w-[794px]"
+                style={{
+                  fontFamily:
+                    '"Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+                }}
+              >
+                {/* Emisor */}
+                <section className="text-sm">
+                  <div className="flex gap-2 items-start mb-0.5">
+                    <b className="min-w-[78px] flex-none pt-0.5">Nombre:</b>
+                    <AutoInput
+                      label="Nombre del emisor"
+                      placeholder="Tu nombre o empresa"
+                      value={emisor.nombre}
+                      onChange={(v) => setEmisor({ ...emisor, nombre: v })}
+                    />
                   </div>
-                ))}
-                <div className="flex justify-between text-sm font-medium pt-1 border-t border-gray-100">
-                  <span className="text-gray-700">Total Abonado:</span>
-                  <span className="text-green-600">-{formatCurrency(totalPaid)}</span>
-                </div>
+                  <div className="flex gap-2 items-start mb-0.5">
+                    <b className="min-w-[78px] flex-none pt-0.5">Dirección:</b>
+                    <AutoInput
+                      label="Dirección del emisor"
+                      placeholder="Tu dirección"
+                      value={emisor.direccion}
+                      onChange={(v) => setEmisor({ ...emisor, direccion: v })}
+                    />
+                  </div>
+                  <div className="flex gap-2 items-start">
+                    <b className="min-w-[78px] flex-none pt-0.5">Celular:</b>
+                    <AutoInput
+                      inputMode="tel"
+                      label="Celular del emisor"
+                      placeholder="300 000 0000"
+                      value={emisor.celular}
+                      onChange={(v) => setEmisor({ ...emisor, celular: v })}
+                    />
+                  </div>
+                </section>
+
+                {/* Título */}
+                <section className="flex justify-between items-end my-4">
+                  <h1
+                    className="m-0 font-extrabold"
+                    style={{ fontSize: 44, color: "#10243e" }}
+                  >
+                    FACTURA
+                  </h1>
+                  <div className="flex gap-2 items-baseline font-bold text-sm">
+                    <span>Fecha:</span>
+                    <input
+                      aria-label="Fecha de la factura"
+                      className={inputCls}
+                      style={{ width: 150 }}
+                      type="date"
+                      value={fecha}
+                      onChange={(e) => setFecha(e.target.value)}
+                    />
+                  </div>
+                </section>
+
+                {/* Cliente */}
+                <section className="border-[1.5px] border-gray-800 p-3.5 mb-5 text-sm">
+                  <div className="flex gap-2 items-start my-0.5">
+                    <b className="min-w-[78px] flex-none pt-0.5">Cliente:</b>
+                    <AutoInput
+                      label="Nombre del cliente"
+                      placeholder="Nombre del cliente"
+                      value={cliente.nombre}
+                      onChange={(v) => setCliente({ ...cliente, nombre: v })}
+                    />
+                  </div>
+                  <div className="flex gap-2 items-start my-0.5">
+                    <b className="min-w-[78px] flex-none pt-0.5">Celular:</b>
+                    <AutoInput
+                      inputMode="tel"
+                      label="Celular del cliente"
+                      placeholder="Celular del cliente"
+                      value={cliente.celular}
+                      onChange={(v) => setCliente({ ...cliente, celular: v })}
+                    />
+                  </div>
+                </section>
+
+                {/* Tabla */}
+                <table className="w-full border-collapse table-fixed text-sm">
+                  <thead>
+                    <tr style={{ background: "#f3f5f7" }}>
+                      <th
+                        className="p-1.5 border border-gray-800"
+                        style={{ color: "#10243e", width: "46%" }}
+                      >
+                        CONCEPTO
+                      </th>
+                      <th
+                        className="p-1.5 border border-gray-800"
+                        style={{ color: "#10243e", width: "14%" }}
+                      >
+                        CANTIDAD
+                      </th>
+                      <th
+                        className="p-1.5 border border-gray-800"
+                        style={{ color: "#10243e", width: "20%" }}
+                      >
+                        PRECIO
+                      </th>
+                      <th
+                        className="p-1.5 border border-gray-800"
+                        style={{ color: "#10243e", width: "20%" }}
+                      >
+                        TOTAL
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((r, i) => {
+                      const c = parseFloat(r.cantidad);
+                      const p = parseFloat(r.precio);
+                      const t = isNaN(c) || isNaN(p) ? 0 : c * p;
+                      const hay =
+                        r.concepto.trim() !== "" || !isNaN(c) || !isNaN(p);
+
+                      return (
+                        <tr key={i}>
+                          <td className="border border-gray-300 p-0 align-top">
+                            <AutoInput
+                              className="px-2 py-1 text-sm"
+                              label={`Concepto fila ${i + 1}`}
+                              value={r.concepto}
+                              onChange={(v) => updateRow(i, "concepto", v)}
+                            />
+                          </td>
+                          <td className="border border-gray-300 p-0 h-[30px]">
+                            <input
+                              aria-label={`Cantidad fila ${i + 1}`}
+                              className={`${inputCls} h-[30px] px-2 text-right`}
+                              min="0"
+                              type="number"
+                              value={r.cantidad}
+                              onChange={(e) =>
+                                updateRow(i, "cantidad", e.target.value)
+                              }
+                            />
+                          </td>
+                          <td className="border border-gray-300 p-0 h-[30px]">
+                            <input
+                              aria-label={`Precio fila ${i + 1}`}
+                              className={`${inputCls} h-[30px] px-2 text-right`}
+                              min="0"
+                              type="number"
+                              value={r.precio}
+                              onChange={(e) =>
+                                updateRow(i, "precio", e.target.value)
+                              }
+                            />
+                          </td>
+                          <td className="border border-gray-300 px-2 text-right tabular-nums text-sm">
+                            {hay ? formatCurrency(t) : " "}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {abonos.map((a) => (
+                      <tr key={`abono-${a.id}`}>
+                        <td className="border border-gray-300 px-2 py-1 text-sm">
+                          Abono — {formatFechaCorta(a.createdAt)}
+                        </td>
+                        <td className="border border-gray-300 px-2 py-1 text-center text-sm text-gray-400">
+                          —
+                        </td>
+                        <td className="border border-gray-300 px-2 py-1 text-right tabular-nums text-sm text-green-700">
+                          -{formatCurrency(a.amount)}
+                        </td>
+                        <td className="border border-gray-300 px-2 py-1 text-right tabular-nums text-sm text-green-700">
+                          -{formatCurrency(a.amount)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                {/* Total */}
+                <section className="flex justify-end mt-3.5">
+                  <div
+                    className="flex gap-7 items-center text-white px-5 py-3 rounded-md text-base"
+                    style={{ background: "#10243e" }}
+                  >
+                    <span>TOTAL A PAGAR</span>
+                    <strong
+                      className="text-xl tabular-nums"
+                      data-testid="factura-total"
+                    >
+                      {formatCurrency(total)}
+                    </strong>
+                  </div>
+                </section>
+
+                {/* Métodos de pago */}
+                <section className="mt-6 border-[1.5px] border-gray-800">
+                  <h2
+                    className="m-0 text-center text-sm p-2 border-b-[1.5px] border-gray-800"
+                    style={{ background: "#f3f5f7", color: "#10243e" }}
+                  >
+                    MÉTODOS DE PAGO
+                  </h2>
+                  <div className="flex items-center gap-4 p-4">
+                    <div
+                      className="flex-none w-14 h-14 rounded-[10px] flex items-center justify-center text-white font-extrabold text-xl"
+                      style={{ background: "#00448d" }}
+                    >
+                      B
+                    </div>
+                    <div className="flex-1 min-w-0 text-sm">
+                      <div className="flex gap-2 items-start flex-wrap">
+                        <b className="whitespace-nowrap flex-none pt-0.5">
+                          1. Ahorros Bancolombia:
+                        </b>
+                        <AutoInput
+                          className="font-bold"
+                          inputMode="numeric"
+                          label="Cuenta Bancolombia"
+                          placeholder="Número de cuenta"
+                          value={pagos.bcCuenta}
+                          onChange={(v) => setPagos({ ...pagos, bcCuenta: v })}
+                        />
+                      </div>
+                      <div className="flex gap-2 items-start flex-wrap mt-0.5">
+                        <b className="whitespace-nowrap flex-none pt-0.5">
+                          A nombre de:
+                        </b>
+                        <AutoInput
+                          label="Titular Bancolombia"
+                          placeholder="Nombre del titular"
+                          value={pagos.bcTitular}
+                          onChange={(v) => setPagos({ ...pagos, bcTitular: v })}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4 p-4 border-t border-gray-300">
+                    <div
+                      className="flex-none w-14 h-14 rounded-[10px] flex items-center justify-center text-white font-extrabold text-xl"
+                      style={{ background: "#5b2d82" }}
+                    >
+                      N
+                    </div>
+                    <div className="flex-1 min-w-0 text-sm">
+                      <div className="flex gap-2 items-start flex-wrap">
+                        <b className="whitespace-nowrap flex-none pt-0.5">
+                          2. Nequi:
+                        </b>
+                        <AutoInput
+                          className="font-bold"
+                          inputMode="tel"
+                          label="Celular Nequi"
+                          placeholder="Número de celular"
+                          value={pagos.nqCelular}
+                          onChange={(v) => setPagos({ ...pagos, nqCelular: v })}
+                        />
+                      </div>
+                      <div className="flex gap-2 items-start flex-wrap mt-0.5">
+                        <b className="whitespace-nowrap flex-none pt-0.5">
+                          A nombre de:
+                        </b>
+                        <AutoInput
+                          label="Titular Nequi"
+                          placeholder="Nombre del titular"
+                          value={pagos.nqTitular}
+                          onChange={(v) => setPagos({ ...pagos, nqTitular: v })}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </section>
               </div>
-            )}
-            
-            {/* Final Balance */}
-            <div className="border-t border-gray-200 mt-2 pt-2 flex justify-between font-bold">
-              <span className="text-gray-800">SALDO PENDIENTE:</span>
-              <span className={purchase.debt <= 0 ? "text-green-600" : "text-red-600"}>
-                {formatCurrency(purchase.debt)}
-              </span>
             </div>
-            
-            <div className="mt-2 text-xs text-gray-500">
-              {purchase.debt <= 0 
-                ? "✓ Esta factura ha sido pagada en su totalidad." 
-                : `⚠️ Pendiente por pagar: ${formatCurrency(purchase.debt)}`}
-            </div>
-          </div>
-        </div>
-
-        {/* Abonos / Historial de Pagos */}
-        
-
-        {/* Abonos / Historial de Pagos - Versión Detallada */}
-     
-
-        {/* Footer */}
-        <div className="mt-10 pt-4 border-t border-gray-200">
-          <p className="text-center text-gray-600 text-sm">
-            Gracias por su compra. Para cualquier consulta relacionada con esta factura, 
-            por favor contacte con nuestro servicio de atención al cliente.
-          </p>
-          <p className="text-center text-gray-500 text-sm mt-1">
-            © {new Date().getFullYear()} Camisas Elegantes S.L. - Todos los derechos reservados
-          </p>
-        </div>
-      </div>
+          </ModalBody>
+        </ModalContent>
+      </Modal>
     </div>
   );
 };

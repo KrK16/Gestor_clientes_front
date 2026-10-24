@@ -33,7 +33,6 @@ export interface Payment {
   id: number;
   purchaseId: number;
   amount: number;
-  date: string;
   createdAt: string;
 }
 

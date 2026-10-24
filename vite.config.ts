@@ -7,6 +7,7 @@ export default defineConfig({
   plugins: [react(), tsconfigPaths()],
   server: {
     host: '0.0.0.0', // Esto permite que el servidor sea accesible desde cualquier dirección IP
-    port: 3001, // Puedes cambiar el puerto si lo deseas
+    port: 3001,
+    strictPort: true, // Puedes cambiar el puerto si lo deseas
   },
 })

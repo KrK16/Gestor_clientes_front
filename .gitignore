@@ -28,3 +28,7 @@ pnpm-lock.yaml
 yarn.lock
 package-lock.json
 bun.lockb
+
+
+e2e/downloads/
+test-results/
